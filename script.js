@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", () => {
               } else {
                 swapTiles(t1, t2);
               }
-            }, 300);
+            }, 500);
           } else {
             firstTile.style.outline = "none";
             firstTile = null;
@@ -159,7 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           swapTiles(t1, t2);
         }
-      }, 300);
+      }, 500);
     }
   }
 
@@ -266,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const tile = tiles[index];
           tile.style.backgroundImage = `url(${randomImage()})`;
           tile.classList.add("fading-in");
-          setTimeout(() => tile.classList.remove("fading-in"), 400);
+          setTimeout(() => tile.classList.remove("fading-in"), 500);
         }
       }
 
