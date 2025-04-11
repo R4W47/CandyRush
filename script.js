@@ -50,17 +50,56 @@ document.addEventListener("DOMContentLoaded", () => {
       tile.style.backgroundImage = `url(${randomImage()})`;
       tile.style.backgroundSize = "cover";
       tile.dataset.index = i;
+      tile.setAttribute("draggable", "true");
       board.appendChild(tile);
       tiles.push(tile);
-    }
 
-    attachClickHandlers();
+      // Agregar eventos de arrastre
+      tile.addEventListener('dragstart', handleDragStart);
+      tile.addEventListener('dragover', handleDragOver);
+      tile.addEventListener('drop', handleDrop);
+      tile.addEventListener('dragend', handleDragEnd);
+
+      tile.addEventListener("click", () => handleClick(tile));
+    }
   }
 
-  function attachClickHandlers() {
-    tiles.forEach((tile) => {
-      tile.addEventListener("click", () => handleClick(tile));
-    });
+  function handleDragStart(e) {
+    e.dataTransfer.setData('text/plain', e.target.dataset.index);
+    e.target.style.opacity = '0.5';  // Cambiar opacidad para indicar el arrastre
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();  // Permitir el "drop"
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+
+    const sourceIndex = e.dataTransfer.getData('text/plain');
+    const targetIndex = e.target.dataset.index;
+
+    const sourceTile = tiles[sourceIndex];
+    const targetTile = tiles[targetIndex];
+
+    if (areAdjacent(+sourceIndex, +targetIndex)) {
+      swapTiles(sourceTile, targetTile);
+
+      const t1 = sourceTile;
+      const t2 = targetTile;
+
+      setTimeout(() => {
+        if (checkMatches()) {
+          handleMatches();
+        } else {
+          swapTiles(t1, t2);  // Si no hay match, revertir el cambio
+        }
+      }, 300);
+    }
+  }
+
+  function handleDragEnd(e) {
+    e.target.style.opacity = '1';  // Restaurar opacidad
   }
 
   function areAdjacent(index1, index2) {
