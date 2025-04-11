@@ -39,8 +39,8 @@ h1 {
 }
 
 .tile {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   background-size: cover;
   background-position: center;
   border-radius: 4px;
@@ -79,8 +79,8 @@ h1 {
   }
 
   .tile {
-    width: 23px;
-    height: 23px;
+    width: 26px;
+    height: 26px;
     border-radius: 3px;
   }
 
