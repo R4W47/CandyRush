@@ -1,46 +1,46 @@
 body {
-  background-color: #222;
-  color: #fff;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #ffe6f0;
+
+  background-image: url('images/background.jpg'); /* Usa la ruta correcta según la ubicación de la imagen */
+  background-size: cover; /* Ajusta el tamaño para cubrir toda la pantalla */
+  background-position: center; /* Centra la imagen */
+  background-attachment: fixed; /* Hace que el fondo no se mueva al hacer scroll */
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-height: 100vh;
 }
 
 main {
   max-width: 600px;
   width: 100%;
-  padding: 20px;
+  padding: 16px;
   box-sizing: border-box;
   text-align: center;
 }
 
 h1 {
   margin-bottom: 10px;
-  font-size: 2rem;
+  font-size: 1.8rem;
 }
 
 #score, #highScore {
   margin: 5px 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 
 #gameBoard {
   display: grid;
-  grid-template-columns: repeat(8, 40px);
-  grid-template-rows: repeat(8, 40px);
-  gap: 4px;
+  grid-template-columns: repeat(8, 36px);
+  grid-template-rows: repeat(8, 36px);
+  gap: 3px;
   justify-content: center;
   margin: 20px auto;
-  max-width: 100%;
 }
 
 .tile {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background-size: cover;
   background-position: center;
   border-radius: 4px;
@@ -62,30 +62,29 @@ h1 {
   }
 }
 
-/* 🔄 Responsivo para pantallas pequeñas */
-@media (max-width: 480px) {
-  main {
-    padding: 10px;
-  }
-
-  #gameBoard {
-    grid-template-columns: repeat(8, 32px);
-    grid-template-rows: repeat(8, 32px);
-    gap: 3px;
-  }
-
-  .tile {
-    width: 32px;
-    height: 32px;
-    border-radius: 3px;
-  }
-
+/* 📱 Más pequeño para pantallas menores a 400px */
+@media (max-width: 400px) {
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 
   #score, #highScore {
-    font-size: 1rem;
+    font-size: 0.9rem;
+  }
+
+  #gameBoard {
+    grid-template-columns: repeat(8, 28px);
+    grid-template-rows: repeat(8, 28px);
+    gap: 2px;
+  }
+
+  .tile {
+    width: 28px;
+    height: 28px;
+    border-radius: 3px;
+  }
+
+  main {
+    padding: 8px;
   }
 }
-  
