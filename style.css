@@ -1,0 +1,51 @@
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #ffe6f0;
+
+  background-image: url('images/background.jpg'); /* Usa la ruta correcta según la ubicación de la imagen */
+  background-size: cover; /* Ajusta el tamaño para cubrir toda la pantalla */
+  background-position: center; /* Centra la imagen */
+  background-attachment: fixed; /* Hace que el fondo no se mueva al hacer scroll */
+  margin: 0;
+  padding: 0;
+}
+
+#gameBoard {
+  display: grid;
+  grid-template-columns: repeat(8, 50px);
+  grid-template-rows: repeat(8, 50px);
+  gap: 5px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.tile {
+  width: 50px;
+  height: 50px;
+  background-size: cover;
+  border-radius: 5px;
+  transition: all 0.4s ease;
+}
+
+.tile.fading-out {
+  opacity: 0;
+}
+
+.tile.fading-in {
+  opacity: 0;
+  animation: fadeIn 0.4s forwards;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+
+
+
+
+
+  
