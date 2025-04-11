@@ -17,23 +17,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let firstTile = null;
 
   let score = 0;
-  let highScore = localStorage.getItem('highScore') || 0;
 
   function updateScore(points) {
     score += points;
     document.getElementById('score').innerText = `Puntaje: ${score}`;
-  }
-
-  function updateHighScore() {
-    document.getElementById('highScore').innerText = `Puntaje más alto: ${highScore}`;
-  }
-
-  function checkHighScore() {
-    if (score > highScore) {
-      highScore = score;
-      localStorage.setItem('highScore', highScore);
-      updateHighScore();
-    }
   }
 
   function randomImage() {
@@ -54,37 +41,67 @@ document.addEventListener("DOMContentLoaded", () => {
       board.appendChild(tile);
       tiles.push(tile);
 
-      // Agregar eventos de arrastre
       tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragover', handleDragOver);
       tile.addEventListener('drop', handleDrop);
       tile.addEventListener('dragend', handleDragEnd);
-
       tile.addEventListener("click", () => handleClick(tile));
+
+      // Soporte táctil
+      tile.addEventListener("touchstart", (e) => {
+        firstTile = tile;
+        tile.style.outline = "2px solid white";
+      });
+
+      tile.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const element = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!element || !element.classList.contains("tile")) return;
+        const secondTile = element;
+
+        if (firstTile && secondTile !== firstTile) {
+          if (areAdjacent(+firstTile.dataset.index, +secondTile.dataset.index)) {
+            swapTiles(firstTile, secondTile);
+            const t1 = firstTile;
+            const t2 = secondTile;
+            firstTile.style.outline = "none";
+            firstTile = null;
+
+            setTimeout(() => {
+              if (checkMatches()) {
+                handleMatches();
+              } else {
+                swapTiles(t1, t2);
+              }
+            }, 300);
+          } else {
+            firstTile.style.outline = "none";
+            firstTile = null;
+          }
+        }
+      });
     }
   }
 
   function handleDragStart(e) {
     e.dataTransfer.setData('text/plain', e.target.dataset.index);
-    e.target.style.opacity = '0.5';  // Cambiar opacidad para indicar el arrastre
+    e.target.style.opacity = '0.5';
   }
 
   function handleDragOver(e) {
-    e.preventDefault();  // Permitir el "drop"
+    e.preventDefault();
   }
 
   function handleDrop(e) {
     e.preventDefault();
-
     const sourceIndex = e.dataTransfer.getData('text/plain');
     const targetIndex = e.target.dataset.index;
-
     const sourceTile = tiles[sourceIndex];
     const targetTile = tiles[targetIndex];
 
     if (areAdjacent(+sourceIndex, +targetIndex)) {
       swapTiles(sourceTile, targetTile);
-
       const t1 = sourceTile;
       const t2 = targetTile;
 
@@ -92,14 +109,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (checkMatches()) {
           handleMatches();
         } else {
-          swapTiles(t1, t2);  // Si no hay match, revertir el cambio
+          swapTiles(t1, t2);
         }
       }, 300);
     }
   }
 
   function handleDragEnd(e) {
-    e.target.style.opacity = '1';  // Restaurar opacidad
+    e.target.style.opacity = '1';
   }
 
   function areAdjacent(index1, index2) {
@@ -211,8 +228,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     updateScore(pointsToAdd);
-
-    // Animar desaparición
     toRemove.forEach(i => tiles[i].classList.add("fading-out"));
 
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -226,8 +241,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (checkMatches()) {
       await handleMatches();
-    } else {
-      checkHighScore();
     }
   }
 
