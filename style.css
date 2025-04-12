@@ -3,10 +3,10 @@ body {
   text-align: center;
   background: #ffe6f0;
 
-  background-image: url('images/background.jpg'); /* Ajusta según ubicación */
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
+  background-image: url('images/background.jpg'); /* Usa la ruta correcta según la ubicación de la imagen */
+  background-size: cover; /* Ajusta el tamaño para cubrir toda la pantalla */
+  background-position: center; /* Centra la imagen */
+  background-attachment: fixed; /* Hace que el fondo no se mueva al hacer scroll */
   margin: 0;
   padding: 0;
 }
@@ -24,18 +24,18 @@ h1 {
   font-size: 1.8rem;
 }
 
-#score {
+#score, #highScore {
   background-color: rgba(255, 255, 255, 0.7);
   display: inline-block;
   padding: 8px 16px;
   border-radius: 20px;
   font-weight: bold;
-  color: #c2185b;
+  color: #c2185b; /* Rosa fuerte para contraste */
   box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   transition: transform 0.3s ease;
 }
 
-#score:hover {
+#score:hover, #highScore:hover {
   transform: scale(1.05);
 }
 
@@ -46,7 +46,8 @@ h1 {
   gap: 3px;
   justify-content: center;
   margin: 20px auto;
-  background-color: rgba(255, 255, 255, 0.65);
+
+  background-color: rgba(255, 255, 255, 0.65); /* Blanco semitransparente */
   padding: 16px;
   border-radius: 16px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
@@ -77,36 +78,13 @@ h1 {
   }
 }
 
-@keyframes explode {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-    box-shadow: 0 0 10px yellow;
-  }
-  50% {
-    transform: scale(1.8);
-    opacity: 0.7;
-    box-shadow: 0 0 30px red;
-  }
-  100% {
-    transform: scale(0);
-    opacity: 0;
-    box-shadow: 0 0 0 transparent;
-  }
-}
-
-.tile.explosion {
-  animation: explode 0.5s ease-out forwards;
-  z-index: 10;
-}
-
-/* 📱 Responsive para pantallas menores a 400px */
+/* 📱 Más pequeño para pantallas menores a 400px */
 @media (max-width: 400px) {
   h1 {
     font-size: 1.4rem;
   }
 
-  #score {
+  #score, #highScore {
     font-size: 0.9rem;
   }
 
