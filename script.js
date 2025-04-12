@@ -1,6 +1,5 @@
-// Código completo con correcciones
+// Código completo con correcciones y explosión doble
 
-// Asegúrate que este script esté dentro de un DOMContentLoaded o al final del body
 document.addEventListener("DOMContentLoaded", () => {
   const board = document.getElementById("gameBoard");
   const width = 8;
@@ -66,15 +65,20 @@ document.addEventListener("DOMContentLoaded", () => {
     swapTiles(sourceTile, targetTile);
 
     setTimeout(() => {
-      if (targetTile.style.backgroundImage.includes(explosiveCandy)) {
-        triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
-      } else if (sourceTile.style.backgroundImage.includes(explosiveCandy)) {
+      const isT1Explosive = sourceTile.style.backgroundImage.includes(explosiveCandy);
+      const isT2Explosive = targetTile.style.backgroundImage.includes(explosiveCandy);
+
+      if (isT1Explosive && isT2Explosive) {
+        triggerDoubleExplosion(targetIndex).then(() => checkAndHandleMatches());
+      } else if (isT1Explosive) {
         triggerExplosion(sourceIndex).then(() => checkAndHandleMatches());
+      } else if (isT2Explosive) {
+        triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
       } else {
         if (checkMatches(sourceIndex, targetIndex)) {
           handleMatches(sourceIndex, targetIndex);
         } else {
-          swapTiles(sourceTile, targetTile); // revert if no match
+          swapTiles(sourceTile, targetTile);
         }
       }
     }, 100);
@@ -95,7 +99,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function checkMatches(...movedIndices) {
-    // Siempre revisamos todo el tablero para mantener lógica limpia
     for (let i = 0; i < tiles.length; i++) {
       if (getMatchAt(i).length >= 3) return true;
     }
@@ -137,21 +140,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const col = index % width;
     const baseImg = tiles[index].style.backgroundImage;
 
-    // Horizontal check
     let i = index + 1;
     while (i % width !== 0 && tiles[i] && tiles[i].style.backgroundImage === baseImg) {
       matches.push(i);
       i++;
     }
 
-    // Vertical check
     i = index + width;
     while (i < width * width && tiles[i].style.backgroundImage === baseImg) {
       matches.push(i);
       i += width;
     }
 
-    // Si no hay suficientes, reducimos
     return matches.filter(i => tiles[i].style.backgroundImage === baseImg);
   }
 
@@ -181,6 +181,35 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function triggerDoubleExplosion(centerIndex) {
+    return new Promise(resolve => {
+      const explosionTargets = new Set();
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const row = Math.floor(centerIndex / width);
+          const col = centerIndex % width;
+          const newRow = row + dy;
+          const newCol = col + dx;
+
+          if (newRow >= 0 && newRow < width && newCol >= 0 && newCol < width) {
+            const index = newRow * width + newCol;
+            explosionTargets.add(index);
+          }
+        }
+      }
+
+      explosionTargets.forEach(index => tiles[index].classList.add("explosion"));
+
+      setTimeout(() => {
+        explosionTargets.forEach(index => {
+          tiles[index].style.backgroundImage = "";
+          tiles[index].classList.remove("explosion");
+        });
+        applyGravity().then(resolve);
+      }, 600);
+    });
+  }
+
   function applyGravity() {
     return new Promise(resolve => {
       for (let col = 0; col < width; col++) {
@@ -207,7 +236,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function checkAndHandleMatches() {
     if (checkMatches()) {
-      handleMatches(-1); // -1 = no movimiento específico
+      handleMatches(-1);
     }
   }
 
