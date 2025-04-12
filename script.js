@@ -1,10 +1,8 @@
+// Código completo con correcciones
+
+// Asegúrate que este script esté dentro de un DOMContentLoaded o al final del body
 document.addEventListener("DOMContentLoaded", () => {
   const board = document.getElementById("gameBoard");
-  if (!board) {
-    console.error('No se encontró el div#gameBoard');
-    return;
-  }
-
   const width = 8;
   const candyImages = [
     'images/candies/red.png',
@@ -13,9 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
     'images/candies/orange.png',
     'images/candies/purple.png'
   ];
+  const explosiveCandy = 'images/candies/explosive.png';
   let tiles = [];
   let firstTile = null;
-
   let score = 0;
 
   function updateScore(points) {
@@ -30,93 +28,56 @@ document.addEventListener("DOMContentLoaded", () => {
   function createBoard() {
     board.innerHTML = "";
     tiles = [];
-
     for (let i = 0; i < width * width; i++) {
       const tile = document.createElement("div");
       tile.classList.add("tile");
       tile.style.backgroundImage = `url(${randomImage()})`;
-      tile.style.backgroundSize = "cover";
       tile.dataset.index = i;
       tile.setAttribute("draggable", "true");
       board.appendChild(tile);
       tiles.push(tile);
 
       tile.addEventListener('dragstart', handleDragStart);
-      tile.addEventListener('dragover', handleDragOver);
+      tile.addEventListener('dragover', e => e.preventDefault());
       tile.addEventListener('drop', handleDrop);
-      tile.addEventListener('dragend', handleDragEnd);
-      tile.addEventListener("click", () => handleClick(tile));
-
-      // Soporte táctil
-      tile.addEventListener("touchstart", (e) => {
-        firstTile = tile;
-        tile.style.outline = "2px solid white";
-      });
-
-      tile.addEventListener("touchmove", (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const element = document.elementFromPoint(touch.clientX, touch.clientY);
-        if (!element || !element.classList.contains("tile")) return;
-        const secondTile = element;
-
-        if (firstTile && secondTile !== firstTile) {
-          if (areAdjacent(+firstTile.dataset.index, +secondTile.dataset.index)) {
-            swapTiles(firstTile, secondTile);
-            const t1 = firstTile;
-            const t2 = secondTile;
-            firstTile.style.outline = "none";
-            firstTile = null;
-
-            setTimeout(() => {
-              if (checkMatches()) {
-                handleMatches();
-              } else {
-                swapTiles(t1, t2);
-              }
-            }, 500);
-          } else {
-            firstTile.style.outline = "none";
-            firstTile = null;
-          }
-        }
-      });
+      tile.addEventListener('dragend', () => tile.style.opacity = '1');
     }
   }
 
-  function handleDragStart(e) {
-    e.dataTransfer.setData('text/plain', e.target.dataset.index);
-    e.target.style.opacity = '0.5';
-  }
+  let draggedTile = null;
 
-  function handleDragOver(e) {
-    e.preventDefault();
+  function handleDragStart(e) {
+    draggedTile = e.target;
+    e.dataTransfer.setData('text/plain', draggedTile.dataset.index);
+    draggedTile.style.opacity = '0.5';
   }
 
   function handleDrop(e) {
-    e.preventDefault();
-    const sourceIndex = e.dataTransfer.getData('text/plain');
-    const targetIndex = e.target.dataset.index;
+    const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'));
+    const targetIndex = parseInt(e.target.dataset.index);
     const sourceTile = tiles[sourceIndex];
     const targetTile = tiles[targetIndex];
 
-    if (areAdjacent(+sourceIndex, +targetIndex)) {
-      swapTiles(sourceTile, targetTile);
-      const t1 = sourceTile;
-      const t2 = targetTile;
-
-      setTimeout(() => {
-        if (checkMatches()) {
-          handleMatches();
-        } else {
-          swapTiles(t1, t2);
-        }
-      }, 300);
+    if (!areAdjacent(sourceIndex, targetIndex)) {
+      draggedTile.style.opacity = '1';
+      return;
     }
-  }
 
-  function handleDragEnd(e) {
-    e.target.style.opacity = '1';
+    swapTiles(sourceTile, targetTile);
+
+    setTimeout(() => {
+      if (targetTile.style.backgroundImage.includes(explosiveCandy)) {
+        triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
+      } else if (sourceTile.style.backgroundImage.includes(explosiveCandy)) {
+        triggerExplosion(sourceIndex).then(() => checkAndHandleMatches());
+      } else {
+        if (checkMatches(sourceIndex, targetIndex)) {
+          handleMatches(sourceIndex, targetIndex);
+        } else {
+          swapTiles(sourceTile, targetTile); // revert if no match
+        }
+      }
+    }, 100);
   }
 
   function areAdjacent(index1, index2) {
@@ -124,155 +85,132 @@ document.addEventListener("DOMContentLoaded", () => {
     const y1 = Math.floor(index1 / width);
     const x2 = index2 % width;
     const y2 = Math.floor(index2 / width);
-    const dx = Math.abs(x1 - x2);
-    const dy = Math.abs(y1 - y2);
-    return (dx === 1 && dy === 0) || (dx === 0 && dy === 1);
+    return (Math.abs(x1 - x2) + Math.abs(y1 - y2)) === 1;
   }
 
   function swapTiles(tile1, tile2) {
-    const img1 = tile1.style.backgroundImage;
+    const temp = tile1.style.backgroundImage;
     tile1.style.backgroundImage = tile2.style.backgroundImage;
-    tile2.style.backgroundImage = img1;
+    tile2.style.backgroundImage = temp;
   }
 
-  function handleClick(tile) {
-    if (!firstTile) {
-      firstTile = tile;
-      tile.style.outline = "2px solid white";
-    } else {
-      if (tile === firstTile || !areAdjacent(+firstTile.dataset.index, +tile.dataset.index)) {
-        firstTile.style.outline = "none";
-        firstTile = null;
-        return;
-      }
+  function checkMatches(...movedIndices) {
+    // Siempre revisamos todo el tablero para mantener lógica limpia
+    for (let i = 0; i < tiles.length; i++) {
+      if (getMatchAt(i).length >= 3) return true;
+    }
+    return false;
+  }
 
-      swapTiles(firstTile, tile);
-      tile.style.outline = "none";
-      firstTile.style.outline = "none";
-      const t1 = firstTile;
-      const t2 = tile;
-      firstTile = null;
+  function handleMatches(lastMovedIndex) {
+    const toRemove = new Set();
+    let explosionAssigned = false;
+
+    for (let i = 0; i < tiles.length; i++) {
+      const match = getMatchAt(i);
+      if (match.length >= 3) {
+        match.forEach(index => toRemove.add(index));
+
+        if (match.length >= 4 && !explosionAssigned && match.includes(lastMovedIndex)) {
+          tiles[lastMovedIndex].style.backgroundImage = `url(${explosiveCandy})`;
+          toRemove.delete(lastMovedIndex);
+          explosionAssigned = true;
+        }
+      }
+    }
+
+    updateScore(toRemove.size * 10);
+    toRemove.forEach(index => tiles[index].classList.add("fading-out"));
+
+    setTimeout(() => {
+      toRemove.forEach(index => {
+        tiles[index].style.backgroundImage = "";
+        tiles[index].classList.remove("fading-out");
+      });
+      applyGravity().then(() => checkAndHandleMatches());
+    }, 400);
+  }
+
+  function getMatchAt(index) {
+    const matches = [index];
+    const row = Math.floor(index / width);
+    const col = index % width;
+    const baseImg = tiles[index].style.backgroundImage;
+
+    // Horizontal check
+    let i = index + 1;
+    while (i % width !== 0 && tiles[i] && tiles[i].style.backgroundImage === baseImg) {
+      matches.push(i);
+      i++;
+    }
+
+    // Vertical check
+    i = index + width;
+    while (i < width * width && tiles[i].style.backgroundImage === baseImg) {
+      matches.push(i);
+      i += width;
+    }
+
+    // Si no hay suficientes, reducimos
+    return matches.filter(i => tiles[i].style.backgroundImage === baseImg);
+  }
+
+  function triggerExplosion(centerIndex) {
+    return new Promise(resolve => {
+      const explosionIndices = [];
+      const dirs = [
+        -width-1, -width, -width+1,
+        -1, 0, 1,
+        width-1, width, width+1
+      ];
+
+      dirs.forEach(offset => {
+        const i = centerIndex + offset;
+        if (tiles[i]) explosionIndices.push(i);
+      });
+
+      explosionIndices.forEach(i => tiles[i].classList.add("explosion"));
 
       setTimeout(() => {
-        if (checkMatches()) {
-          handleMatches();
-        } else {
-          swapTiles(t1, t2);
-        }
+        explosionIndices.forEach(i => {
+          tiles[i].style.backgroundImage = "";
+          tiles[i].classList.remove("explosion");
+        });
+        applyGravity().then(resolve);
       }, 500);
-    }
-  }
-
-  function checkMatches() {
-    let matchFound = false;
-
-    for (let row = 0; row < width; row++) {
-      for (let col = 0; col <= width - 3; col++) {
-        const i = row * width + col;
-        const c1 = tiles[i].style.backgroundImage;
-        const c2 = tiles[i + 1].style.backgroundImage;
-        const c3 = tiles[i + 2].style.backgroundImage;
-
-        if (c1 === c2 && c2 === c3 && c1 !== "") {
-          matchFound = true;
-        }
-      }
-    }
-
-    for (let col = 0; col < width; col++) {
-      for (let row = 0; row <= width - 3; row++) {
-        const i = row * width + col;
-        const c1 = tiles[i].style.backgroundImage;
-        const c2 = tiles[i + width].style.backgroundImage;
-        const c3 = tiles[i + 2 * width].style.backgroundImage;
-
-        if (c1 === c2 && c2 === c3 && c1 !== "") {
-          matchFound = true;
-        }
-      }
-    }
-
-    return matchFound;
-  }
-
-  async function handleMatches() {
-    let toRemove = new Set();
-    let pointsToAdd = 0;
-
-    for (let row = 0; row < width; row++) {
-      for (let col = 0; col <= width - 3; col++) {
-        const i = row * width + col;
-        const c1 = tiles[i].style.backgroundImage;
-        const c2 = tiles[i + 1].style.backgroundImage;
-        const c3 = tiles[i + 2].style.backgroundImage;
-
-        if (c1 === c2 && c2 === c3 && c1 !== "") {
-          toRemove.add(i); toRemove.add(i + 1); toRemove.add(i + 2);
-          pointsToAdd += 30;
-        }
-      }
-    }
-
-    for (let col = 0; col < width; col++) {
-      for (let row = 0; row <= width - 3; row++) {
-        const i = row * width + col;
-        const c1 = tiles[i].style.backgroundImage;
-        const c2 = tiles[i + width].style.backgroundImage;
-        const c3 = tiles[i + 2 * width].style.backgroundImage;
-
-        if (c1 === c2 && c2 === c3 && c1 !== "") {
-          toRemove.add(i); toRemove.add(i + width); toRemove.add(i + 2 * width);
-          pointsToAdd += 30;
-        }
-      }
-    }
-
-    updateScore(pointsToAdd);
-    toRemove.forEach(i => tiles[i].classList.add("fading-out"));
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    toRemove.forEach(i => {
-      tiles[i].style.backgroundImage = "";
-      tiles[i].classList.remove("fading-out");
     });
-
-    await applyGravity();
-
-    if (checkMatches()) {
-      await handleMatches();
-    }
   }
 
   function applyGravity() {
     return new Promise(resolve => {
       for (let col = 0; col < width; col++) {
         let emptySpots = 0;
-
         for (let row = width - 1; row >= 0; row--) {
-          const i = row * width + col;
-
-          if (tiles[i].style.backgroundImage === "") {
+          const index = row * width + col;
+          if (tiles[index].style.backgroundImage === "") {
             emptySpots++;
           } else if (emptySpots > 0) {
             const targetIndex = (row + emptySpots) * width + col;
-            tiles[targetIndex].style.backgroundImage = tiles[i].style.backgroundImage;
-            tiles[i].style.backgroundImage = "";
+            tiles[targetIndex].style.backgroundImage = tiles[index].style.backgroundImage;
+            tiles[index].style.backgroundImage = "";
           }
         }
 
         for (let i = 0; i < emptySpots; i++) {
           const index = i * width + col;
-          const tile = tiles[index];
-          tile.style.backgroundImage = `url(${randomImage()})`;
-          tile.classList.add("fading-in");
-          setTimeout(() => tile.classList.remove("fading-in"), 500);
+          tiles[index].style.backgroundImage = `url(${randomImage()})`;
         }
       }
-
-      setTimeout(resolve, 500);
+      setTimeout(resolve, 300);
     });
   }
 
+  function checkAndHandleMatches() {
+    if (checkMatches()) {
+      handleMatches(-1); // -1 = no movimiento específico
+    }
+  }
+
   createBoard();
+  checkAndHandleMatches();
 });
