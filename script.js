@@ -1,5 +1,3 @@
-// Código completo con correcciones y explosión doble
-
 document.addEventListener("DOMContentLoaded", () => {
   const board = document.getElementById("gameBoard");
   const width = 8;
@@ -12,7 +10,6 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
   const explosiveCandy = 'images/candies/explosive.png';
   let tiles = [];
-  let firstTile = null;
   let score = 0;
 
   function updateScore(points) {
@@ -36,13 +33,19 @@ document.addEventListener("DOMContentLoaded", () => {
       board.appendChild(tile);
       tiles.push(tile);
 
+      // Eventos de mouse
       tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragover', e => e.preventDefault());
       tile.addEventListener('drop', handleDrop);
       tile.addEventListener('dragend', () => tile.style.opacity = '1');
+
+      // Eventos táctiles
+      tile.addEventListener('touchstart', handleTouchStart, { passive: true });
+      tile.addEventListener('touchend', handleTouchEnd);
     }
   }
 
+  // DRAG & DROP
   let draggedTile = null;
 
   function handleDragStart(e) {
@@ -54,11 +57,32 @@ document.addEventListener("DOMContentLoaded", () => {
   function handleDrop(e) {
     const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'));
     const targetIndex = parseInt(e.target.dataset.index);
+    handleSwap(sourceIndex, targetIndex);
+  }
+
+  // TOUCH
+  let touchStartIndex = null;
+
+  function handleTouchStart(e) {
+    touchStartIndex = parseInt(e.target.dataset.index);
+  }
+
+  function handleTouchEnd(e) {
+    const touch = e.changedTouches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element || !element.classList.contains("tile")) return;
+
+    const targetIndex = parseInt(element.dataset.index);
+    handleSwap(touchStartIndex, targetIndex);
+  }
+
+  // COMMON SWAP HANDLING
+  function handleSwap(sourceIndex, targetIndex) {
     const sourceTile = tiles[sourceIndex];
     const targetTile = tiles[targetIndex];
 
     if (!areAdjacent(sourceIndex, targetIndex)) {
-      draggedTile.style.opacity = '1';
+      if (draggedTile) draggedTile.style.opacity = '1';
       return;
     }
 
@@ -75,8 +99,8 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (isT2Explosive) {
         triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
       } else {
-        if (checkMatches(sourceIndex, targetIndex)) {
-          handleMatches(sourceIndex, targetIndex);
+        if (checkMatches()) {
+          handleMatches(targetIndex);
         } else {
           swapTiles(sourceTile, targetTile);
         }
@@ -84,21 +108,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 100);
   }
 
-  function areAdjacent(index1, index2) {
-    const x1 = index1 % width;
-    const y1 = Math.floor(index1 / width);
-    const x2 = index2 % width;
-    const y2 = Math.floor(index2 / width);
-    return (Math.abs(x1 - x2) + Math.abs(y1 - y2)) === 1;
+  function areAdjacent(i1, i2) {
+    const x1 = i1 % width;
+    const y1 = Math.floor(i1 / width);
+    const x2 = i2 % width;
+    const y2 = Math.floor(i2 / width);
+    return Math.abs(x1 - x2) + Math.abs(y1 - y2) === 1;
   }
 
-  function swapTiles(tile1, tile2) {
-    const temp = tile1.style.backgroundImage;
-    tile1.style.backgroundImage = tile2.style.backgroundImage;
-    tile2.style.backgroundImage = temp;
+  function swapTiles(t1, t2) {
+    const temp = t1.style.backgroundImage;
+    t1.style.backgroundImage = t2.style.backgroundImage;
+    t2.style.backgroundImage = temp;
   }
 
-  function checkMatches(...movedIndices) {
+  function checkMatches() {
     for (let i = 0; i < tiles.length; i++) {
       if (getMatchAt(i).length >= 3) return true;
     }
@@ -114,9 +138,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (match.length >= 3) {
         match.forEach(index => toRemove.add(index));
 
-        if (match.length >= 4 && !explosionAssigned && match.includes(lastMovedIndex)) {
-          tiles[lastMovedIndex].style.backgroundImage = `url(${explosiveCandy})`;
-          toRemove.delete(lastMovedIndex);
+        if (match.length >= 4 && !explosionAssigned) {
+          const explosionIndex = match[Math.floor(match.length / 2)];
+          tiles[explosionIndex].style.backgroundImage = `url(${explosiveCandy})`;
+          toRemove.delete(explosionIndex);
           explosionAssigned = true;
         }
       }
@@ -240,6 +265,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // INIT
   createBoard();
   checkAndHandleMatches();
 });
