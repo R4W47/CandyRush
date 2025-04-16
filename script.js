@@ -33,16 +33,19 @@ document.addEventListener("DOMContentLoaded", () => {
       board.appendChild(tile);
       tiles.push(tile);
 
+      // Eventos de mouse
       tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragover', e => e.preventDefault());
       tile.addEventListener('drop', handleDrop);
       tile.addEventListener('dragend', () => tile.style.opacity = '1');
 
+      // Eventos táctiles
       tile.addEventListener('touchstart', handleTouchStart, { passive: true });
       tile.addEventListener('touchend', handleTouchEnd);
     }
   }
 
+  // DRAG & DROP
   let draggedTile = null;
 
   function handleDragStart(e) {
@@ -57,6 +60,7 @@ document.addEventListener("DOMContentLoaded", () => {
     handleSwap(sourceIndex, targetIndex);
   }
 
+  // TOUCH
   let touchStartIndex = null;
 
   function handleTouchStart(e) {
@@ -67,10 +71,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const touch = e.changedTouches[0];
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!element || !element.classList.contains("tile")) return;
+
     const targetIndex = parseInt(element.dataset.index);
     handleSwap(touchStartIndex, targetIndex);
   }
 
+  // COMMON SWAP HANDLING
   function handleSwap(sourceIndex, targetIndex) {
     const sourceTile = tiles[sourceIndex];
     const targetTile = tiles[targetIndex];
@@ -87,11 +93,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const isT2Explosive = targetTile.style.backgroundImage.includes(explosiveCandy);
 
       if (isT1Explosive && isT2Explosive) {
-        triggerChainExplosions([sourceIndex, targetIndex]).then(() => checkAndHandleMatches());
+        triggerDoubleExplosion(targetIndex).then(() => checkAndHandleMatches());
       } else if (isT1Explosive) {
-        triggerChainExplosions([sourceIndex]).then(() => checkAndHandleMatches());
+        triggerExplosion(sourceIndex).then(() => checkAndHandleMatches());
       } else if (isT2Explosive) {
-        triggerChainExplosions([targetIndex]).then(() => checkAndHandleMatches());
+        triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
       } else {
         if (checkMatches()) {
           handleMatches(targetIndex);
@@ -174,79 +180,104 @@ document.addEventListener("DOMContentLoaded", () => {
     return matches.filter(i => tiles[i].style.backgroundImage === baseImg);
   }
 
-  function getExplosionIndices(centerIndex) {
-    const indices = [];
-    const dirs = [
-      -width-1, -width, -width+1,
-      -1, 0, 1,
-      width-1, width, width+1
-    ];
-    dirs.forEach(offset => {
-      const i = centerIndex + offset;
-      if (i >= 0 && i < width * width) indices.push(i);
-    });
-    return indices;
-  }
+  function triggerExplosion(centerIndex) {
+    return new Promise(resolve => {
+      const explosionIndices = [];
+      const centerRow = Math.floor(centerIndex / width);
+      const centerCol = centerIndex % width;
 
-  async function triggerChainExplosions(initialCenters) {
-    const toExplode = new Set();
-    const queue = [...initialCenters];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const newRow = centerRow + dy;
+          const newCol = centerCol + dx;
 
-    while (queue.length > 0) {
-      const center = queue.shift();
-      const explosionIndices = getExplosionIndices(center);
-
-      explosionIndices.forEach(i => {
-        if (!toExplode.has(i)) {
-          toExplode.add(i);
-          if (tiles[i].style.backgroundImage.includes(explosiveCandy)) {
-            queue.push(i);
+          if (
+            newRow >= 0 && newRow < width &&
+            newCol >= 0 && newCol < width
+          ) {
+            const index = newRow * width + newCol;
+            explosionIndices.push(index);
           }
         }
-      });
-    }
+      }
 
-    toExplode.forEach(i => tiles[i].classList.add("explosion"));
+      // Verificamos si alguno de estos caramelos también es explosivo
+      const nestedExplosives = explosionIndices.filter(i =>
+        tiles[i].style.backgroundImage.includes(explosiveCandy)
+      );
 
-    return new Promise(resolve => {
+      explosionIndices.forEach(i => tiles[i].classList.add("explosion"));
+
       setTimeout(() => {
-        toExplode.forEach(i => {
+        explosionIndices.forEach(i => {
           tiles[i].style.backgroundImage = "";
           tiles[i].classList.remove("explosion");
         });
-        applyGravity().then(resolve);
+
+        applyGravity().then(() => {
+          // Si alguno de los caramelos eliminados era explosivo, lo activamos también
+          if (nestedExplosives.length > 0) {
+            Promise.all(nestedExplosives.map(triggerExplosion)).then(resolve);
+          } else {
+            resolve();
+          }
+        });
       }, 500);
     });
   }
 
-  function applyGravity() {
-  return new Promise(resolve => {
-    for (let col = 0; col < width; col++) {
-      let emptySpots = 0;
-      for (let row = width - 1; row >= 0; row--) {
-        const index = row * width + col;
+  function triggerDoubleExplosion(centerIndex) {
+    return new Promise(resolve => {
+      const explosionTargets = new Set();
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const row = Math.floor(centerIndex / width);
+          const col = centerIndex % width;
+          const newRow = row + dy;
+          const newCol = col + dx;
 
-        if (tiles[index].style.backgroundImage === "") {
-          emptySpots++;
-        } else if (emptySpots > 0) {
-          const targetIndex = (row + emptySpots) * width + col;
-
-          // Mover la imagen del caramelo
-          tiles[targetIndex].style.backgroundImage = tiles[index].style.backgroundImage;
-          tiles[index].style.backgroundImage = "";
+          if (newRow >= 0 && newRow < width && newCol >= 0 && newCol < width) {
+            const index = newRow * width + newCol;
+            explosionTargets.add(index);
+          }
         }
       }
 
-      // Rellenar nuevos caramelos en la parte superior
-      for (let i = 0; i < emptySpots; i++) {
-        const index = i * width + col;
-        tiles[index].style.backgroundImage = `url(${randomImage()})`;
-      }
-    }
+      explosionTargets.forEach(index => tiles[index].classList.add("explosion"));
 
-    setTimeout(resolve, 300);
-  });
-}
+      setTimeout(() => {
+        explosionTargets.forEach(index => {
+          tiles[index].style.backgroundImage = "";
+          tiles[index].classList.remove("explosion");
+        });
+        applyGravity().then(resolve);
+      }, 600);
+    });
+  }
+
+  function applyGravity() {
+    return new Promise(resolve => {
+      for (let col = 0; col < width; col++) {
+        let emptySpots = 0;
+        for (let row = width - 1; row >= 0; row--) {
+          const index = row * width + col;
+          if (tiles[index].style.backgroundImage === "") {
+            emptySpots++;
+          } else if (emptySpots > 0) {
+            const targetIndex = (row + emptySpots) * width + col;
+            tiles[targetIndex].style.backgroundImage = tiles[index].style.backgroundImage;
+            tiles[index].style.backgroundImage = "";
+          }
+        }
+
+        for (let i = 0; i < emptySpots; i++) {
+          const index = i * width + col;
+          tiles[index].style.backgroundImage = `url(${randomImage()})`;
+        }
+      }
+      setTimeout(resolve, 300);
+    });
+  }
 
   function checkAndHandleMatches() {
     if (checkMatches()) {
@@ -254,6 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // INIT
   createBoard();
   checkAndHandleMatches();
 });
