@@ -33,19 +33,16 @@ document.addEventListener("DOMContentLoaded", () => {
       board.appendChild(tile);
       tiles.push(tile);
 
-      // Eventos de mouse
       tile.addEventListener('dragstart', handleDragStart);
       tile.addEventListener('dragover', e => e.preventDefault());
       tile.addEventListener('drop', handleDrop);
       tile.addEventListener('dragend', () => tile.style.opacity = '1');
 
-      // Eventos táctiles
       tile.addEventListener('touchstart', handleTouchStart, { passive: true });
       tile.addEventListener('touchend', handleTouchEnd);
     }
   }
 
-  // DRAG & DROP
   let draggedTile = null;
 
   function handleDragStart(e) {
@@ -60,7 +57,6 @@ document.addEventListener("DOMContentLoaded", () => {
     handleSwap(sourceIndex, targetIndex);
   }
 
-  // TOUCH
   let touchStartIndex = null;
 
   function handleTouchStart(e) {
@@ -71,12 +67,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const touch = e.changedTouches[0];
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     if (!element || !element.classList.contains("tile")) return;
-
     const targetIndex = parseInt(element.dataset.index);
     handleSwap(touchStartIndex, targetIndex);
   }
 
-  // COMMON SWAP HANDLING
   function handleSwap(sourceIndex, targetIndex) {
     const sourceTile = tiles[sourceIndex];
     const targetTile = tiles[targetIndex];
@@ -93,11 +87,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const isT2Explosive = targetTile.style.backgroundImage.includes(explosiveCandy);
 
       if (isT1Explosive && isT2Explosive) {
-        triggerDoubleExplosion(targetIndex).then(() => checkAndHandleMatches());
+        triggerChainExplosions([sourceIndex, targetIndex]).then(() => checkAndHandleMatches());
       } else if (isT1Explosive) {
-        triggerExplosion(sourceIndex).then(() => checkAndHandleMatches());
+        triggerChainExplosions([sourceIndex]).then(() => checkAndHandleMatches());
       } else if (isT2Explosive) {
-        triggerExplosion(targetIndex).then(() => checkAndHandleMatches());
+        triggerChainExplosions([targetIndex]).then(() => checkAndHandleMatches());
       } else {
         if (checkMatches()) {
           handleMatches(targetIndex);
@@ -180,58 +174,48 @@ document.addEventListener("DOMContentLoaded", () => {
     return matches.filter(i => tiles[i].style.backgroundImage === baseImg);
   }
 
-  function triggerExplosion(centerIndex) {
-    return new Promise(resolve => {
-      const explosionIndices = [];
-      const dirs = [
-        -width-1, -width, -width+1,
-        -1, 0, 1,
-        width-1, width, width+1
-      ];
+  function getExplosionIndices(centerIndex) {
+    const indices = [];
+    const dirs = [
+      -width-1, -width, -width+1,
+      -1, 0, 1,
+      width-1, width, width+1
+    ];
+    dirs.forEach(offset => {
+      const i = centerIndex + offset;
+      if (i >= 0 && i < width * width) indices.push(i);
+    });
+    return indices;
+  }
 
-      dirs.forEach(offset => {
-        const i = centerIndex + offset;
-        if (tiles[i]) explosionIndices.push(i);
+  async function triggerChainExplosions(initialCenters) {
+    const toExplode = new Set();
+    const queue = [...initialCenters];
+
+    while (queue.length > 0) {
+      const center = queue.shift();
+      const explosionIndices = getExplosionIndices(center);
+
+      explosionIndices.forEach(i => {
+        if (!toExplode.has(i)) {
+          toExplode.add(i);
+          if (tiles[i].style.backgroundImage.includes(explosiveCandy)) {
+            queue.push(i);
+          }
+        }
       });
+    }
 
-      explosionIndices.forEach(i => tiles[i].classList.add("explosion"));
+    toExplode.forEach(i => tiles[i].classList.add("explosion"));
 
+    return new Promise(resolve => {
       setTimeout(() => {
-        explosionIndices.forEach(i => {
+        toExplode.forEach(i => {
           tiles[i].style.backgroundImage = "";
           tiles[i].classList.remove("explosion");
         });
         applyGravity().then(resolve);
       }, 500);
-    });
-  }
-
-  function triggerDoubleExplosion(centerIndex) {
-    return new Promise(resolve => {
-      const explosionTargets = new Set();
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          const row = Math.floor(centerIndex / width);
-          const col = centerIndex % width;
-          const newRow = row + dy;
-          const newCol = col + dx;
-
-          if (newRow >= 0 && newRow < width && newCol >= 0 && newCol < width) {
-            const index = newRow * width + newCol;
-            explosionTargets.add(index);
-          }
-        }
-      }
-
-      explosionTargets.forEach(index => tiles[index].classList.add("explosion"));
-
-      setTimeout(() => {
-        explosionTargets.forEach(index => {
-          tiles[index].style.backgroundImage = "";
-          tiles[index].classList.remove("explosion");
-        });
-        applyGravity().then(resolve);
-      }, 600);
     });
   }
 
@@ -249,7 +233,6 @@ document.addEventListener("DOMContentLoaded", () => {
             tiles[index].style.backgroundImage = "";
           }
         }
-
         for (let i = 0; i < emptySpots; i++) {
           const index = i * width + col;
           tiles[index].style.backgroundImage = `url(${randomImage()})`;
@@ -265,7 +248,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // INIT
   createBoard();
   checkAndHandleMatches();
 });
