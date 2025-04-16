@@ -220,27 +220,33 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function applyGravity() {
-    return new Promise(resolve => {
-      for (let col = 0; col < width; col++) {
-        let emptySpots = 0;
-        for (let row = width - 1; row >= 0; row--) {
-          const index = row * width + col;
-          if (tiles[index].style.backgroundImage === "") {
-            emptySpots++;
-          } else if (emptySpots > 0) {
-            const targetIndex = (row + emptySpots) * width + col;
-            tiles[targetIndex].style.backgroundImage = tiles[index].style.backgroundImage;
-            tiles[index].style.backgroundImage = "";
-          }
-        }
-        for (let i = 0; i < emptySpots; i++) {
-          const index = i * width + col;
-          tiles[index].style.backgroundImage = `url(${randomImage()})`;
+  return new Promise(resolve => {
+    for (let col = 0; col < width; col++) {
+      let emptySpots = 0;
+      for (let row = width - 1; row >= 0; row--) {
+        const index = row * width + col;
+
+        if (tiles[index].style.backgroundImage === "") {
+          emptySpots++;
+        } else if (emptySpots > 0) {
+          const targetIndex = (row + emptySpots) * width + col;
+
+          // Mover la imagen del caramelo
+          tiles[targetIndex].style.backgroundImage = tiles[index].style.backgroundImage;
+          tiles[index].style.backgroundImage = "";
         }
       }
-      setTimeout(resolve, 300);
-    });
-  }
+
+      // Rellenar nuevos caramelos en la parte superior
+      for (let i = 0; i < emptySpots; i++) {
+        const index = i * width + col;
+        tiles[index].style.backgroundImage = `url(${randomImage()})`;
+      }
+    }
+
+    setTimeout(resolve, 300);
+  });
+}
 
   function checkAndHandleMatches() {
     if (checkMatches()) {
