@@ -117,8 +117,70 @@ h1 {
   animation: appear var(--appear-time, 300ms) ease-out;
 }
 
-.candy.explosive .face {
+/* ---------- Caramelos especiales ----------
+   El orden importa: las reglas de más abajo ganan. Por eso "nacer",
+   "reventar" y "explotar" van después de las marcas de cada especial. */
+
+.face {
+  position: relative;
+}
+
+.face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Rayados: franjas blancas recortadas con la forma del propio caramelo */
+.candy[data-special="stripedH"] .face::after,
+.candy[data-special="stripedV"] .face::after {
+  -webkit-mask: var(--img) center / contain no-repeat;
+  mask: var(--img) center / contain no-repeat;
+}
+
+.candy[data-special="stripedH"] .face::after {
+  background: repeating-linear-gradient(0deg,
+    rgba(255, 255, 255, 0.9) 0 3px, transparent 3px 8px);
+}
+
+.candy[data-special="stripedV"] .face::after {
+  background: repeating-linear-gradient(90deg,
+    rgba(255, 255, 255, 0.9) 0 3px, transparent 3px 8px);
+}
+
+/* Envuelto: un envoltorio dorado que gira */
+.candy[data-special="wrapped"] .face,
+.candy[data-special="armed"] .face {
+  filter: drop-shadow(0 0 3px gold);
+}
+
+.candy[data-special="wrapped"] .face::after,
+.candy[data-special="armed"] .face::after {
+  inset: -2px;
+  border: 3px dashed gold;
+  border-radius: 35%;
+  animation: spin 6s linear infinite;
+}
+
+/* Armado: ya explotó una vez y está por explotar otra */
+.candy[data-special="armed"] .face {
+  animation: armed 0.35s ease-in-out infinite alternate;
+}
+
+.candy[data-special="armed"] .face::after {
+  border-color: #ff5722;
+  animation-duration: 1.2s;
+}
+
+/* Bomba de color */
+.candy[data-special="bomb"] .face {
   animation: glow 1.4s ease-in-out infinite;
+}
+
+/* Un especial que acaba de nacer */
+.candy.born .face {
+  animation: born var(--born-time, 400ms) ease-out;
 }
 
 .candy.pop .face {
@@ -131,6 +193,32 @@ h1 {
 
 .candy.boom .face {
   animation: boom var(--boom-time, 350ms) ease-out forwards;
+}
+
+/* Rayo que cruza una fila o columna */
+.beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  animation: beam var(--boom-time, 350ms) ease-out forwards;
+}
+
+.beam-h {
+  width: 100%;
+  height: var(--cell);
+  transform: translateY(calc(var(--y) * 100%));
+  background: linear-gradient(transparent 5%, rgba(255, 193, 7, 0.7) 30%, #fff 50%, rgba(255, 193, 7, 0.7) 70%, transparent 95%);
+  box-shadow: 0 0 12px rgba(255, 193, 7, 0.8);
+}
+
+.beam-v {
+  width: var(--cell);
+  height: 100%;
+  transform: translateX(calc(var(--x) * 100%));
+  background: linear-gradient(90deg, transparent 5%, rgba(255, 193, 7, 0.7) 30%, #fff 50%, rgba(255, 193, 7, 0.7) 70%, transparent 95%);
+  box-shadow: 0 0 12px rgba(255, 193, 7, 0.8);
 }
 
 /* ---------- Mensajes y botón ---------- */
@@ -195,13 +283,36 @@ h1 {
   50%      { filter: drop-shadow(0 0 7px orange); }
 }
 
+@keyframes born {
+  0%   { transform: scale(1); filter: brightness(1); }
+  40%  { transform: scale(1.35); filter: brightness(1.8) drop-shadow(0 0 8px #fff); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes armed {
+  from { transform: scale(0.95); filter: drop-shadow(0 0 3px orange); }
+  to   { transform: scale(1.1);  filter: drop-shadow(0 0 9px red); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes beam {
+  0%   { opacity: 0; }
+  25%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @keyframes bump {
   50% { transform: scale(1.25); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .candy.explosive .face {
+  .candy[data-special="bomb"] .face,
+  .candy[data-special="armed"] .face,
+  .candy[data-special="wrapped"] .face::after,
+  .candy[data-special="armed"] .face::after {
     animation: none;
-    filter: drop-shadow(0 0 4px gold);
   }
 }

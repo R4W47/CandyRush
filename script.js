@@ -7,10 +7,8 @@
 
   const WIDTH = 8;                 // el tablero es de WIDTH x WIDTH
   const SIZE = WIDTH * WIDTH;
-  const EMPTY = -1;                // casilla vacía
-  const EXPLOSIVE = 9;             // caramelo explosivo
 
-  // Cada número del tablero corresponde a una imagen de esta lista
+  // Cada color es un número que apunta a una imagen de esta lista
   const CANDY_IMAGES = [
     "images/candies/red.png",      // 0
     "images/candies/green.png",    // 1
@@ -19,7 +17,14 @@
     "images/candies/purple.png",   // 4
     "images/candies/yellow.png",   // 5
   ];
-  const EXPLOSIVE_IMAGE = "images/candies/explosive.png";
+  const BOMB_IMAGE = "images/candies/explosive.png";
+
+  // Tipos de caramelos especiales
+  const STRIPED_H = "stripedH";    // rayado horizontal: borra su fila
+  const STRIPED_V = "stripedV";    // rayado vertical: borra su columna
+  const WRAPPED = "wrapped";       // envuelto: explota 3x3...
+  const ARMED = "armed";           // ...queda "armado", cae y vuelve a explotar
+  const BOMB = "bomb";             // bomba de color: borra todo un color
 
   const POINTS_PER_CANDY = 10;
 
@@ -32,14 +37,19 @@
     fallMin: 160 * MOVE_SCALE,     // caída mínima
     shuffle: 300 * MOVE_SCALE,     // mezcla del tablero
     pop: 250 * REACTION_SCALE,     // caramelos que desaparecen por combinación
-    boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por explosión
+    boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por un especial
+    transform: 300 * REACTION_SCALE, // caramelos que se convierten en especiales
   };
 
   // =====================================================================
   // 2. ESTADO
   // =====================================================================
 
-  let grid = [];        // el "cerebro": 64 números (tipo de caramelo por casilla)
+  // El "cerebro": 64 casillas. Cada una es null (vacía) o un caramelo:
+  //   { color: 0-5, special: null }          caramelo normal
+  //   { color: 2, special: "stripedH" }      rayado, envuelto o armado (tienen color)
+  //   { color: null, special: "bomb" }       bomba de color (no tiene color)
+  let grid = [];
   let els = [];         // el elemento HTML que se ve en cada casilla (mismo índice que grid)
   let score = 0;
   let busy = false;     // true mientras hay animaciones: bloquea nuevos movimientos
@@ -52,14 +62,17 @@
   const restartBtn = document.getElementById("restart");
 
   // =====================================================================
-  // 3. LÓGICA PURA (solo trabaja con números, nunca toca la pantalla)
+  // 3. LÓGICA PURA (solo trabaja con datos, nunca toca la pantalla)
   // =====================================================================
 
   const rowOf = (i) => Math.floor(i / WIDTH);
   const colOf = (i) => i % WIDTH;
   const indexOf = (r, c) => r * WIDTH + c;
-  const randomType = () => Math.floor(Math.random() * CANDY_IMAGES.length);
-  const isCandy = (t) => t >= 0 && t < CANDY_IMAGES.length; // normal, no explosivo ni vacío
+  const randomColor = () => Math.floor(Math.random() * CANDY_IMAGES.length);
+  const candy = (color, special = null) => ({ color, special });
+  const isStriped = (cell) => cell && (cell.special === STRIPED_H || cell.special === STRIPED_V);
+  const sameColor = (x, y) => x && y && x.color !== null && x.color === y.color;
+  const allCells = () => [...Array(SIZE).keys()];
 
   function areAdjacent(a, b) {
     return Math.abs(rowOf(a) - rowOf(b)) + Math.abs(colOf(a) - colOf(b)) === 1;
@@ -69,39 +82,40 @@
     [g[a], g[b]] = [g[b], g[a]];
   }
 
-  // Busca líneas de 3 o más caramelos iguales, en filas y en columnas por separado.
-  // Devuelve cada línea encontrada (groups) y todas las casillas afectadas (cells).
+  // Busca líneas de 3 o más caramelos del mismo color, en filas y columnas por separado.
+  // Devuelve cada línea (groups, con su dirección) y todas las casillas afectadas (cells).
   function findMatches(g) {
     const groups = [];
 
-    const scanLine = (getIndex) => {
+    const scanLine = (getIndex, dir) => {
       let run = [getIndex(0)];
       for (let k = 1; k <= WIDTH; k++) {
         const i = k < WIDTH ? getIndex(k) : null;
-        if (i !== null && g[i] === g[run[0]]) {
+        if (i !== null && sameColor(g[i], g[run[0]])) {
           run.push(i);
         } else {
-          if (run.length >= 3 && isCandy(g[run[0]])) groups.push(run);
+          if (run.length >= 3) groups.push({ cells: run, dir });
           if (i !== null) run = [i];
         }
       }
     };
 
-    for (let r = 0; r < WIDTH; r++) scanLine((c) => indexOf(r, c)); // filas
-    for (let c = 0; c < WIDTH; c++) scanLine((r) => indexOf(r, c)); // columnas
+    for (let r = 0; r < WIDTH; r++) scanLine((c) => indexOf(r, c), "h"); // filas
+    for (let c = 0; c < WIDTH; c++) scanLine((r) => indexOf(r, c), "v"); // columnas
 
-    return { groups, cells: new Set(groups.flat()) };
+    return { groups, cells: new Set(groups.flatMap((grp) => grp.cells)) };
   }
 
-  // ¿Queda algún movimiento que genere una combinación?
+  // ¿Queda algún movimiento válido?
   function hasPossibleMove(g) {
-    if (g.includes(EXPLOSIVE)) return true; // un explosivo siempre se puede usar
+    if (g.some((cell) => cell && cell.special === BOMB)) return true; // la bomba siempre sirve
     const copy = g.slice();
     for (let i = 0; i < SIZE; i++) {
       const neighbors = [];
       if (colOf(i) < WIDTH - 1) neighbors.push(i + 1);
       if (rowOf(i) < WIDTH - 1) neighbors.push(i + WIDTH);
       for (const n of neighbors) {
+        if (g[i].special && g[n].special) return true; // dos especiales juntos siempre sirven
         swapIn(copy, i, n);
         const works = findMatches(copy).groups.length > 0;
         swapIn(copy, i, n);
@@ -119,50 +133,158 @@
       for (let i = 0; i < SIZE; i++) {
         const r = rowOf(i);
         const c = colOf(i);
-        let t;
+        let color;
         do {
-          t = randomType();
+          color = randomColor();
         } while (
-          (c >= 2 && g[i - 1] === t && g[i - 2] === t) ||
-          (r >= 2 && g[i - WIDTH] === t && g[i - 2 * WIDTH] === t)
+          (c >= 2 && g[i - 1].color === color && g[i - 2].color === color) ||
+          (r >= 2 && g[i - WIDTH].color === color && g[i - 2 * WIDTH].color === color)
         );
-        g[i] = t;
+        g[i] = candy(color);
       }
     } while (!hasPossibleMove(g));
     return g;
   }
 
-  // Casillas dentro del radio de una explosión (radio 1 = 3x3, radio 2 = 5x5)
-  function explosionArea(center, radius) {
-    const cells = [];
-    const r0 = rowOf(center);
-    const c0 = colOf(center);
-    for (let dr = -radius; dr <= radius; dr++) {
-      for (let dc = -radius; dc <= radius; dc++) {
-        const r = r0 + dr;
-        const c = c0 + dc;
-        if (r >= 0 && r < WIDTH && c >= 0 && c < WIDTH) cells.push(indexOf(r, c));
-      }
-    }
-    return cells;
+  // ---------- Áreas que afecta cada especial ----------
+
+  const rowCells = (i) => allCells().filter((x) => rowOf(x) === rowOf(i));
+  const colCells = (i) => allCells().filter((x) => colOf(x) === colOf(i));
+
+  // Cuadrado alrededor de una casilla (radio 1 = 3x3, radio 2 = 5x5)
+  function squareArea(center, radius) {
+    return allCells().filter(
+      (x) =>
+        Math.abs(rowOf(x) - rowOf(center)) <= radius &&
+        Math.abs(colOf(x) - colOf(center)) <= radius
+    );
   }
 
-  // Calcula todas las casillas que se destruyen, incluyendo reacciones en cadena:
-  // si la explosión alcanza otro explosivo, ese también explota (una sola vez).
-  function collectExplosion(g, start, alreadyDetonated = []) {
-    const cleared = new Set();
-    const detonated = new Set(alreadyDetonated);
-    const queue = [...start];
+  // Varias filas y columnas completas alrededor de una casilla (cruz gruesa)
+  function crossArea(center, radius) {
+    return allCells().filter(
+      (x) =>
+        Math.abs(rowOf(x) - rowOf(center)) <= radius ||
+        Math.abs(colOf(x) - colOf(center)) <= radius
+    );
+  }
+
+  const cellsOfColor = (g, color) => allCells().filter((i) => g[i] && g[i].color === color);
+
+  function mostCommonColor(g, except = null) {
+    const counts = new Array(CANDY_IMAGES.length).fill(0);
+    g.forEach((cell) => {
+      if (cell && cell.color !== null && cell.color !== except) counts[cell.color]++;
+    });
+    return counts.indexOf(Math.max(...counts));
+  }
+
+  // Calcula todo lo que se destruye a partir de unas casillas iniciales,
+  // activando en cadena los especiales que sean alcanzados.
+  //   activated: especiales que ya se usaron (no se vuelven a activar)
+  //   protect:   casillas que no se pueden tocar (los especiales recién creados)
+  // Devuelve: clear (casillas a borrar), armed (envueltos que explotarán otra vez)
+  // y fired (especiales que se activaron, para dibujar sus efectos).
+  function expandEffects(g, initial, activated = [], protect = []) {
+    const clear = new Set();
+    const armed = new Set();
+    const fired = [];
+    const done = new Set(activated);
+    const safe = new Set(protect);
+    const queue = [];
+
+    const hit = (i) => {
+      if (!g[i] || safe.has(i) || armed.has(i) || clear.has(i)) return;
+      clear.add(i);
+      queue.push(i);
+    };
+
+    initial.forEach(hit);
+
     while (queue.length) {
-      const { index, radius } = queue.shift();
-      if (detonated.has(index)) continue;
-      detonated.add(index);
-      for (const i of explosionArea(index, radius)) {
-        cleared.add(i);
-        if (g[i] === EXPLOSIVE && !detonated.has(i)) queue.push({ index: i, radius: 1 });
+      const i = queue.shift();
+      const cell = g[i];
+      if (!cell.special || done.has(i)) continue;
+      done.add(i);
+      fired.push({ index: i, special: cell.special });
+
+      switch (cell.special) {
+        case STRIPED_H:
+          rowCells(i).forEach(hit);
+          break;
+        case STRIPED_V:
+          colCells(i).forEach(hit);
+          break;
+        case WRAPPED: // primera explosión: el envuelto sobrevive y queda armado
+          clear.delete(i);
+          armed.add(i);
+          squareArea(i, 1).forEach(hit);
+          break;
+        case ARMED: // segunda explosión: ahora sí desaparece
+          squareArea(i, 1).forEach(hit);
+          break;
+        case BOMB: // alcanzada por otro especial: borra el color más abundante
+          cellsOfColor(g, mostCommonColor(g)).forEach(hit);
+          break;
       }
     }
-    return cleared;
+    return { clear, armed, fired };
+  }
+
+  // Decide qué especiales nacen de una ronda de combinaciones:
+  //   L o T (una línea horizontal y una vertical que se cruzan) → envuelto
+  //   5 o más en línea → bomba de color
+  //   4 en línea → rayado
+  // move = { a, b } si fue el jugador, o null si fue una cascada.
+  function planSpecials(g, matches, move) {
+    const plans = [];
+    const usedGroups = new Set();
+    const taken = new Set();
+    const moved = move ? [move.a, move.b] : [];
+    const canHost = (i) => g[i] && !g[i].special && !taken.has(i);
+    const add = (i, cell) => {
+      taken.add(i);
+      plans.push({ index: i, cell });
+    };
+    const middle = (list) => list[Math.floor(list.length / 2)];
+
+    const horizontals = matches.groups.filter((grp) => grp.dir === "h");
+    const verticals = matches.groups.filter((grp) => grp.dir === "v");
+
+    // L o T
+    for (const h of horizontals) {
+      for (const v of verticals) {
+        if (usedGroups.has(h) || usedGroups.has(v)) continue;
+        const cross = h.cells.find((i) => v.cells.includes(i));
+        if (cross === undefined) continue;
+        usedGroups.add(h);
+        usedGroups.add(v);
+        const spot = canHost(cross) ? cross : [...h.cells, ...v.cells].find(canHost);
+        if (spot === undefined) continue;
+        const longest = Math.max(h.cells.length, v.cells.length);
+        add(spot, longest >= 5 ? candy(null, BOMB) : candy(g[cross].color, WRAPPED));
+      }
+    }
+
+    // Líneas rectas de 4 o más
+    for (const grp of matches.groups) {
+      if (usedGroups.has(grp) || grp.cells.length < 4) continue;
+      const spot =
+        grp.cells.find((i) => moved.includes(i) && canHost(i)) ??
+        middle(grp.cells.filter(canHost));
+      if (spot === undefined) continue;
+      if (grp.cells.length >= 5) {
+        add(spot, candy(null, BOMB));
+      } else {
+        // la dirección de las rayas sigue la dirección en que el jugador deslizó;
+        // en las cascadas es al azar
+        let stripe;
+        if (move) stripe = rowOf(move.a) === rowOf(move.b) ? STRIPED_H : STRIPED_V;
+        else stripe = Math.random() < 0.5 ? STRIPED_H : STRIPED_V;
+        add(spot, candy(g[grp.cells[0]].color, stripe));
+      }
+    }
+    return plans;
   }
 
   // Hace caer los caramelos y rellena los huecos de arriba.
@@ -175,11 +297,11 @@
       let write = WIDTH - 1; // la fila más baja libre
       for (let r = WIDTH - 1; r >= 0; r--) {
         const i = indexOf(r, c);
-        if (g[i] !== EMPTY) {
+        if (g[i] !== null) {
           if (r !== write) {
             const to = indexOf(write, c);
             g[to] = g[i];
-            g[i] = EMPTY;
+            g[i] = null;
             moves.push({ from: i, to });
           }
           write--;
@@ -188,7 +310,7 @@
       const missing = write + 1; // cuántos caramelos nuevos necesita la columna
       for (let r = write; r >= 0; r--) {
         const to = indexOf(r, c);
-        g[to] = randomType();
+        g[to] = candy(randomColor());
         spawns.push({ to, startRow: r - missing }); // empieza por encima del tablero
       }
     }
@@ -216,26 +338,35 @@
   const nextFrame = () =>
     new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-  document.documentElement.style.setProperty("--pop-time", `${TIME.pop}ms`);
-  document.documentElement.style.setProperty("--boom-time", `${TIME.boom}ms`);
-  document.documentElement.style.setProperty("--appear-time", `${TIME.shuffle}ms`);
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty("--pop-time", `${TIME.pop}ms`);
+  rootStyle.setProperty("--boom-time", `${TIME.boom}ms`);
+  rootStyle.setProperty("--appear-time", `${TIME.shuffle}ms`);
+  rootStyle.setProperty("--born-time", `${TIME.transform}ms`);
 
-  function imageFor(type) {
-    return type === EXPLOSIVE ? EXPLOSIVE_IMAGE : CANDY_IMAGES[type];
+  // Pinta un caramelo: su imagen y, si es especial, su marca (rayas, envoltorio, brillo)
+  function setCell(el, cell) {
+    const img = `url("${cell.special === BOMB ? BOMB_IMAGE : CANDY_IMAGES[cell.color]}")`;
+    el.firstChild.style.backgroundImage = img;
+    el.firstChild.style.setProperty("--img", img); // las rayas usan la forma del caramelo
+    el.dataset.special = cell.special || "";
   }
 
-  function setType(el, type) {
-    el.classList.toggle("explosive", type === EXPLOSIVE);
-    el.firstChild.style.backgroundImage = `url("${imageFor(type)}")`;
+  // Aplica una animación de un solo uso y la quita al terminar
+  function playOnce(el, className) {
+    el.classList.remove(className);
+    void el.offsetWidth; // reinicia la animación si ya la tenía
+    el.classList.add(className);
+    el.addEventListener("animationend", () => el.classList.remove(className), { once: true });
   }
 
-  function makeCandyEl(type) {
+  function makeCandyEl(cell) {
     const el = document.createElement("div");
     el.className = "candy";
     const face = document.createElement("div");
     face.className = "face";
     el.appendChild(face);
-    setType(el, type);
+    setCell(el, cell);
     boardEl.appendChild(el);
     return el;
   }
@@ -254,16 +385,29 @@
   // Dibuja todo el tablero desde cero a partir del grid
   function render(effect) {
     boardEl.innerHTML = "";
-    els = grid.map((type, i) => {
-      const el = makeCandyEl(type);
+    els = grid.map((cell, i) => {
+      const el = makeCandyEl(cell);
       place(el, i);
-      if (effect) {
-        el.classList.add(effect);
-        // al terminar la entrada se quita la clase, para que no tape otras animaciones
-        el.addEventListener("animationend", () => el.classList.remove(effect), { once: true });
-      }
+      if (effect) playOnce(el, effect);
       return el;
     });
+  }
+
+  // Cambia una casilla por otro caramelo (por ejemplo, cuando nace un especial)
+  function transformCell(i, cell) {
+    grid[i] = cell;
+    setCell(els[i], cell);
+    playOnce(els[i], "born");
+  }
+
+  // Rayo que cruza la fila o columna de un rayado
+  function showBeam(index, special) {
+    const beam = document.createElement("div");
+    beam.className = `beam ${special === STRIPED_H ? "beam-h" : "beam-v"}`;
+    beam.style.setProperty("--x", colOf(index));
+    beam.style.setProperty("--y", rowOf(index));
+    boardEl.appendChild(beam);
+    beam.addEventListener("animationend", () => beam.remove(), { once: true });
   }
 
   // Intercambia dos casillas en el grid y en la pantalla, con deslizamiento
@@ -277,18 +421,36 @@
     await wait(TIME.swap);
   }
 
-  // Quita caramelos: los marca vacíos en el grid y los anima antes de borrarlos
-  async function removeCells(cells, effect) {
+  // Quita caramelos: los de una combinación "revientan" (pop),
+  // los alcanzados por un especial "explotan" (boom)
+  async function removeCells(cells, popCells) {
+    let longest = 0;
     for (const i of cells) {
-      grid[i] = EMPTY;
+      const effect = popCells.has(i) ? "pop" : "boom";
+      longest = Math.max(longest, effect === "pop" ? TIME.pop : TIME.boom);
+      grid[i] = null;
       els[i].classList.remove("selected");
       els[i].classList.add(effect);
     }
-    await wait(effect === "boom" ? TIME.boom : TIME.pop);
+    await wait(longest);
     for (const i of cells) {
       els[i].remove();
       els[i] = null;
     }
+  }
+
+  // Aplica en pantalla el resultado de expandEffects
+  async function applyEffects({ clear, armed, fired }, popCells = new Set(), combo = 1) {
+    for (const f of fired) {
+      if (f.special === STRIPED_H || f.special === STRIPED_V) showBeam(f.index, f.special);
+    }
+    for (const i of armed) {
+      grid[i] = candy(grid[i].color, ARMED);
+      setCell(els[i], grid[i]);
+    }
+    if (!clear.size) return;
+    addScore(clear.size * POINTS_PER_CANDY * combo, combo);
+    await removeCells(clear, popCells);
   }
 
   // Aplica la gravedad en el grid y anima la caída real de los caramelos
@@ -360,40 +522,90 @@
   // 6. REGLAS DE UN TURNO
   // =====================================================================
 
-  // Explosión de uno o dos explosivos
-  async function detonate(start, alreadyDetonated = []) {
-    const cells = collectExplosion(grid, start, alreadyDetonated);
-    addScore(cells.size * POINTS_PER_CANDY);
-    await removeCells(cells, "boom");
+  // Resuelve una ronda de combinaciones: crea los especiales que correspondan,
+  // activa los especiales que formaban parte de las líneas y hace caer todo.
+  async function resolveMatches(matches, move, combo) {
+    const plans = planSpecials(grid, matches, move);
+    const newSpots = plans.map((p) => p.index);
+    const matched = [...matches.cells].filter((i) => !newSpots.includes(i));
+
+    const result = expandEffects(grid, matched, [], newSpots);
+    for (const { index, cell } of plans) transformCell(index, cell);
+
+    await applyEffects(result, matches.cells, combo);
     await dropCandies();
   }
 
-  // Resuelve una ronda de combinaciones.
-  // Una línea de 4 o más deja un explosivo: en la casilla que movió el jugador,
-  // o en el centro de la línea si fue una cascada.
-  async function resolveMatches(matches, movedCells, combo) {
-    const toClear = new Set(matches.cells);
+  // Bomba de color intercambiada con otro caramelo
+  async function bombSwap(bomb, other) {
+    const target = grid[other];
 
-    for (const group of matches.groups) {
-      if (group.length < 4) continue;
-      const spot =
-        group.find((i) => movedCells && movedCells.includes(i)) ??
-        group[Math.floor(group.length / 2)];
-      if (!toClear.has(spot)) continue; // esa casilla ya se usó para otro explosivo
-      toClear.delete(spot);
-      grid[spot] = EXPLOSIVE;
-      setType(els[spot], EXPLOSIVE);
+    if (target.special === BOMB) {
+      // bomba + bomba: limpia el tablero completo
+      showMessage("¡Tablero limpio!");
+      await applyEffects({ clear: new Set(allCells()), armed: new Set(), fired: [] });
+    } else if (isStriped(target)) {
+      // bomba + rayado: todos los de ese color se vuelven rayados y se activan
+      const same = cellsOfColor(grid, target.color);
+      for (const i of same) {
+        transformCell(i, candy(target.color, Math.random() < 0.5 ? STRIPED_H : STRIPED_V));
+      }
+      await wait(TIME.transform);
+      await applyEffects(expandEffects(grid, [bomb, ...same], [bomb]));
+    } else if (target.special === WRAPPED) {
+      // bomba + envuelto: borra ese color y después otro color más
+      const color = target.color;
+      await applyEffects(expandEffects(grid, [bomb, ...cellsOfColor(grid, color)], [bomb]));
+      await dropCandies();
+      const second = mostCommonColor(grid, color);
+      await applyEffects(expandEffects(grid, cellsOfColor(grid, second)));
+    } else {
+      // bomba + caramelo normal: borra todos los de ese color
+      await applyEffects(expandEffects(grid, [bomb, ...cellsOfColor(grid, target.color)], [bomb]));
     }
-
-    addScore(matches.cells.size * POINTS_PER_CANDY * combo, combo);
-    await removeCells(toClear, "pop");
     await dropCandies();
   }
 
-  // Mientras la caída genere nuevas combinaciones, se siguen resolviendo
-  async function runCascades(combo) {
-    let matches;
-    while ((matches = findMatches(grid)).groups.length) {
+  // Dos especiales (rayados o envueltos) intercambiados entre sí
+  async function specialCombo(a, b) {
+    const stripes = [grid[a], grid[b]].filter(isStriped).length;
+
+    if (stripes === 2) {
+      // rayado + rayado: fila y columna completas
+      showBeam(b, STRIPED_H);
+      showBeam(b, STRIPED_V);
+      await applyEffects(expandEffects(grid, [...rowCells(b), ...colCells(b)], [a, b]));
+    } else if (stripes === 1) {
+      // rayado + envuelto: 3 filas y 3 columnas
+      for (const d of [-1, 0, 1]) {
+        const r = rowOf(b) + d;
+        const c = colOf(b) + d;
+        if (r >= 0 && r < WIDTH) showBeam(indexOf(r, colOf(b)), STRIPED_H);
+        if (c >= 0 && c < WIDTH) showBeam(indexOf(rowOf(b), c), STRIPED_V);
+      }
+      await applyEffects(expandEffects(grid, crossArea(b, 1), [a, b]));
+    } else {
+      // envuelto + envuelto: explosión de 5x5, dos veces
+      await applyEffects(expandEffects(grid, squareArea(b, 2), [a, b]));
+      await dropCandies();
+      await applyEffects(expandEffects(grid, squareArea(b, 2)));
+    }
+    await dropCandies();
+  }
+
+  // Después de cada jugada: los envueltos armados explotan otra vez
+  // y las cascadas se resuelven hasta que el tablero queda quieto
+  async function settleBoard(combo) {
+    while (true) {
+      const armed = allCells().filter((i) => grid[i] && grid[i].special === ARMED);
+      if (armed.length) {
+        await applyEffects(expandEffects(grid, armed), new Set(), combo);
+        await dropCandies();
+        combo++;
+        continue;
+      }
+      const matches = findMatches(grid);
+      if (!matches.groups.length) break;
       await resolveMatches(matches, null, combo);
       combo++;
     }
@@ -406,23 +618,24 @@
 
     try {
       await swapCells(a, b);
-      const typeA = grid[a];
-      const typeB = grid[b];
+      const A = grid[a];
+      const B = grid[b];
 
-      if (typeA === EXPLOSIVE && typeB === EXPLOSIVE) {
-        await detonate([{ index: b, radius: 2 }], [a]); // doble explosión 5x5
-      } else if (typeA === EXPLOSIVE || typeB === EXPLOSIVE) {
-        await detonate([{ index: typeA === EXPLOSIVE ? a : b, radius: 1 }]);
+      if (A.special === BOMB || B.special === BOMB) {
+        const bomb = B.special === BOMB ? b : a;
+        await bombSwap(bomb, bomb === a ? b : a);
+      } else if (A.special && B.special) {
+        await specialCombo(a, b);
       } else {
         const matches = findMatches(grid);
         if (!matches.groups.length) {
           await swapCells(a, b); // no sirvió: los caramelos regresan
           return;
         }
-        await resolveMatches(matches, [a, b], 1);
+        await resolveMatches(matches, { a, b }, 1);
       }
 
-      await runCascades(2);
+      await settleBoard(2);
       if (!hasPossibleMove(grid)) await reshuffle();
     } finally {
       busy = false;
@@ -512,7 +725,7 @@
   // =====================================================================
 
   function preloadImages() {
-    const sources = [...CANDY_IMAGES, EXPLOSIVE_IMAGE];
+    const sources = [...CANDY_IMAGES, BOMB_IMAGE];
     return Promise.all(
       sources.map(
         (src) =>
