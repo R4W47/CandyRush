@@ -1,6 +1,6 @@
 :root {
   /* Fondo del juego: para cambiarlo (por temporada, por nivel...) basta con cambiar estas dos */
-  --bg-image: url("images/background.jpg");
+  --bg-image: url("images/background.jpg?v=2"); /* sube el número si cambias la imagen */
   --bg-fill: #c38a7c;          /* color de respaldo mientras carga la imagen */
   --pink: #c2185b;
   --pink-dark: #8e0f42;
