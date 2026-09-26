@@ -1,14 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Candy Rush R4W47</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Candy Rush</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="gameBoard"></div>
+  <main class="game">
+    <header class="hud">
+      <h1>Candy Rush</h1>
+      <div class="score" id="scoreBox">Puntaje: <strong id="score">0</strong></div>
+    </header>
+
+    <div class="board-frame">
+      <div id="board" class="board" aria-label="Tablero de caramelos"></div>
+    </div>
+
+    <p id="message" class="message" aria-live="polite"></p>
+
+    <button id="restart" class="restart" type="button">Nueva partida</button>
+  </main>
+
   <script src="script.js"></script>
-  <div id="score">Puntaje: 0</div>
 </body>
 </html>
