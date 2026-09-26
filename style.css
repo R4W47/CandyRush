@@ -1,11 +1,14 @@
 :root {
-  /* Fondo del juego: para cambiarlo (por temporada, por nivel...) basta con cambiar estas dos */
-  --bg-image: url("images/background.jpg?v=2"); /* sube el número si cambias la imagen */
+  /* Fondo del juego: para cambiarlo (por temporada, por nivel...) basta con cambiar estas variables.
+     Si reemplazas una imagen con el mismo nombre, sube su número ?v= */
+  --bg-image: url("images/background.jpg?v=2");            /* celular en vertical */
+  --bg-image-wide: url("images/background-wide.jpg?v=1");  /* computadora y tablet horizontal */
   --bg-fill: #c38a7c;          /* color de respaldo mientras carga la imagen */
   --pink: #c2185b;
   --pink-dark: #8e0f42;
   --pink-soft: #ffe6f0;
-  --cell: min(11vw, 56px); /* tamaño de cada casilla: se adapta a la pantalla */
+  /* tamaño de cada casilla: se adapta al ancho y al alto de la pantalla */
+  --cell: min(11vw, calc((100vh - 220px) / 8), 80px);
 }
 
 * {
@@ -33,10 +36,7 @@ body {
   padding: 16px 8px;
 }
 
-/* El fondo va en dos capas fijas detrás del juego:
-   ::before  la misma imagen desenfocada, rellena los costados en pantallas anchas
-   ::after   la imagen nítida */
-body::before,
+/* El fondo va en una capa fija detrás del juego (funciona bien también en iPhone) */
 body::after {
   content: "";
   position: fixed;
@@ -45,18 +45,44 @@ body::after {
   background: var(--bg-image) center / cover no-repeat;
 }
 
-body::before {
-  filter: blur(16px) brightness(0.85);
-  transform: scale(1.1);
-}
-
-/* Pantallas más anchas que la imagen (computadoras, tablets horizontales):
-   se muestra la imagen completa de arriba a abajo, sin ampliarla ni recortarla */
-@media (min-aspect-ratio: 768/1376) {
+/* Pantallas anchas (computadora, tablet horizontal): la dulcería horizontal */
+@media (min-aspect-ratio: 1/1) {
   body::after {
-    background-size: auto 100%;
+    background-image: var(--bg-image-wide);
+    background-position: center bottom;
   }
 }
+
+@supports (height: 100dvh) {
+  :root {
+    --cell: min(11vw, calc((100dvh - 220px) / 8), 80px);
+  }
+}
+
+/* ---------- Aviso para girar el celular ---------- */
+
+.rotate-notice {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 230, 240, 0.92);
+  color: var(--pink);
+  font-weight: bold;
+  font-size: 1.2rem;
+}
+
+.rotate-notice .phone {
+  font-size: 3.5rem;
+  animation: rotate-hint 2s ease-in-out infinite;
+}
+
 
 .game {
   display: flex;
@@ -172,19 +198,20 @@ h1 {
   pointer-events: none;
 }
 
-/* Rayados: franjas blancas recortadas con la forma del propio caramelo */
-.candy[data-special="stripedH"] .face::after,
-.candy[data-special="stripedV"] .face::after {
+/* Rayados: se usan las imágenes redH.png, redV.png, etc.
+   Solo si falta la imagen de un color, se dibujan franjas blancas con la forma del caramelo */
+.candy[data-css-stripes="yes"][data-special="stripedH"] .face::after,
+.candy[data-css-stripes="yes"][data-special="stripedV"] .face::after {
   -webkit-mask: var(--img) center / contain no-repeat;
   mask: var(--img) center / contain no-repeat;
 }
 
-.candy[data-special="stripedH"] .face::after {
+.candy[data-css-stripes="yes"][data-special="stripedH"] .face::after {
   background: repeating-linear-gradient(0deg,
     rgba(255, 255, 255, 0.9) 0 3px, transparent 3px 8px);
 }
 
-.candy[data-special="stripedV"] .face::after {
+.candy[data-css-stripes="yes"][data-special="stripedV"] .face::after {
   background: repeating-linear-gradient(90deg,
     rgba(255, 255, 255, 0.9) 0 3px, transparent 3px 8px);
 }
@@ -344,6 +371,11 @@ h1 {
   100% { opacity: 0; }
 }
 
+@keyframes rotate-hint {
+  0%, 30%   { transform: rotate(90deg); }
+  60%, 100% { transform: rotate(0deg); }
+}
+
 @keyframes bump {
   50% { transform: scale(1.25); }
 }
@@ -354,5 +386,17 @@ h1 {
   .candy[data-special="wrapped"] .face::after,
   .candy[data-special="armed"] .face::after {
     animation: none;
+  }
+}
+
+/* Va al final para que gane sobre las reglas anteriores */
+/* Celulares en horizontal: se oculta el juego y se pide girar el teléfono */
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
+  .game {
+    display: none;
+  }
+
+  .rotate-notice {
+    display: flex;
   }
 }

@@ -8,16 +8,19 @@
   const WIDTH = 8;                 // el tablero es de WIDTH x WIDTH
   const SIZE = WIDTH * WIDTH;
 
-  // Cada color es un número que apunta a una imagen de esta lista
-  const CANDY_IMAGES = [
-    "images/candies/red.png",      // 0
-    "images/candies/green.png",    // 1
-    "images/candies/blue.png",     // 2
-    "images/candies/orange.png",   // 3
-    "images/candies/purple.png",   // 4
-    "images/candies/yellow.png",   // 5
-  ];
-  const BOMB_IMAGE = "images/candies/explosive.png";
+  // Cada color es un número (0-5) que apunta a un nombre de esta lista.
+  // Las imágenes se llaman así: red.png (normal), redH.png (rayas horizontales),
+  // redV.png (rayas verticales). Si falta una imagen de rayas, se dibujan con CSS.
+  const CANDY_NAMES = ["red", "green", "blue", "orange", "purple", "yellow"];
+  const IMAGE_VERSION = 1; // súbelo si reemplazas imágenes con el mismo nombre
+  const imagePath = (name) => `images/candies/${name}.png?v=${IMAGE_VERSION}`;
+  const CANDY_IMAGES = CANDY_NAMES.map((name) => imagePath(name));
+  const STRIPED_IMAGES = {
+    stripedH: CANDY_NAMES.map((name) => imagePath(name + "H")),
+    stripedV: CANDY_NAMES.map((name) => imagePath(name + "V")),
+  };
+  const BOMB_IMAGE = imagePath("explosive");
+  const loadedImages = new Set(); // imágenes que sí existen (se llena al iniciar)
 
   // Tipos de caramelos especiales
   const STRIPED_H = "stripedH";    // rayado horizontal: borra su fila
@@ -344,12 +347,25 @@
   rootStyle.setProperty("--appear-time", `${TIME.shuffle}ms`);
   rootStyle.setProperty("--born-time", `${TIME.transform}ms`);
 
-  // Pinta un caramelo: su imagen y, si es especial, su marca (rayas, envoltorio, brillo)
+  // Qué imagen corresponde a cada caramelo
+  function imageFor(cell) {
+    if (cell.special === BOMB) return BOMB_IMAGE;
+    if (isStriped(cell)) {
+      const striped = STRIPED_IMAGES[cell.special][cell.color];
+      if (loadedImages.has(striped)) return striped;
+    }
+    return CANDY_IMAGES[cell.color];
+  }
+
+  // Pinta un caramelo: su imagen y, si es especial, su marca (envoltorio, brillo...)
   function setCell(el, cell) {
-    const img = `url("${cell.special === BOMB ? BOMB_IMAGE : CANDY_IMAGES[cell.color]}")`;
+    const src = imageFor(cell);
+    const img = `url("${src}")`;
     el.firstChild.style.backgroundImage = img;
-    el.firstChild.style.setProperty("--img", img); // las rayas usan la forma del caramelo
+    el.firstChild.style.setProperty("--img", img);
     el.dataset.special = cell.special || "";
+    // si es rayado pero no hay imagen de rayas para ese color, las rayas se dibujan con CSS
+    el.dataset.cssStripes = isStriped(cell) && src === CANDY_IMAGES[cell.color] ? "yes" : "";
   }
 
   // Aplica una animación de un solo uso y la quita al terminar
@@ -724,14 +740,24 @@
   // 8. INICIO
   // =====================================================================
 
+  // Carga todas las imágenes antes de empezar y anota cuáles existen
   function preloadImages() {
-    const sources = [...CANDY_IMAGES, BOMB_IMAGE];
+    const sources = [
+      ...CANDY_IMAGES,
+      ...STRIPED_IMAGES.stripedH,
+      ...STRIPED_IMAGES.stripedV,
+      BOMB_IMAGE,
+    ];
     return Promise.all(
       sources.map(
         (src) =>
           new Promise((resolve) => {
             const img = new Image();
-            img.onload = img.onerror = resolve;
+            img.onload = () => {
+              loadedImages.add(src);
+              resolve();
+            };
+            img.onerror = resolve; // si no existe, se usará el respaldo
             img.src = src;
           })
       )
