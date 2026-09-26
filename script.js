@@ -25,10 +25,7 @@
 
   // Duración de las animaciones: 1 = rápido, 2 = el doble de lento, 1.5 = intermedio...
   const ANIMATION_SCALE = 2;
-
-  // Si el usuario pidió menos movimiento en su sistema, las animaciones son más cortas
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const SPEED = reduceMotion ? 0.4 : ANIMATION_SCALE;
+  const SPEED = ANIMATION_SCALE;
   const TIME = {
     swap: 180 * SPEED,        // intercambio de dos caramelos
     pop: 250 * SPEED,         // caramelos que desaparecen por combinación
