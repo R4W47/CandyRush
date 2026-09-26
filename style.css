@@ -130,7 +130,7 @@ h1 {
 }
 
 .candy.appear .face {
-  animation: appear 300ms ease-out;
+  animation: appear var(--appear-time, 300ms) ease-out;
 }
 
 /* ---------- Mensajes y botón ---------- */
