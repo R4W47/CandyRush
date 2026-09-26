@@ -113,6 +113,10 @@ h1 {
   filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 3px var(--pink));
 }
 
+.candy.appear .face {
+  animation: appear var(--appear-time, 300ms) ease-out;
+}
+
 .candy.explosive .face {
   animation: glow 1.4s ease-in-out infinite;
 }
@@ -127,10 +131,6 @@ h1 {
 
 .candy.boom .face {
   animation: boom var(--boom-time, 350ms) ease-out forwards;
-}
-
-.candy.appear .face {
-  animation: appear var(--appear-time, 300ms) ease-out;
 }
 
 /* ---------- Mensajes y botón ---------- */

@@ -23,16 +23,16 @@
 
   const POINTS_PER_CANDY = 10;
 
-  // Duración de las animaciones: 1 = rápido, 2 = el doble de lento, 1.5 = intermedio...
-  const ANIMATION_SCALE = 2;
-  const SPEED = ANIMATION_SCALE;
+  // Velocidad de las animaciones: 1 = rápido, 2 = el doble de lento, 1.5 = intermedio...
+  const MOVE_SCALE = 2;       // movimientos: intercambio, caída y mezcla
+  const REACTION_SCALE = 1.4; // reacciones: combinaciones y explosiones
   const TIME = {
-    swap: 180 * SPEED,        // intercambio de dos caramelos
-    pop: 250 * SPEED,         // caramelos que desaparecen por combinación
-    boom: 350 * SPEED,        // caramelos que desaparecen por explosión
-    fallPerRow: 70 * SPEED,   // tiempo de caída por cada fila
-    fallMin: 160 * SPEED,     // caída mínima
-    shuffle: 300 * SPEED,     // mezcla del tablero
+    swap: 180 * MOVE_SCALE,        // intercambio de dos caramelos
+    fallPerRow: 70 * MOVE_SCALE,   // tiempo de caída por cada fila
+    fallMin: 160 * MOVE_SCALE,     // caída mínima
+    shuffle: 300 * MOVE_SCALE,     // mezcla del tablero
+    pop: 250 * REACTION_SCALE,     // caramelos que desaparecen por combinación
+    boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por explosión
   };
 
   // =====================================================================
@@ -257,7 +257,11 @@
     els = grid.map((type, i) => {
       const el = makeCandyEl(type);
       place(el, i);
-      if (effect) el.classList.add(effect);
+      if (effect) {
+        el.classList.add(effect);
+        // al terminar la entrada se quita la clase, para que no tape otras animaciones
+        el.addEventListener("animationend", () => el.classList.remove(effect), { once: true });
+      }
       return el;
     });
   }
