@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="images/icon-192.png">
   <link rel="apple-touch-icon" href="images/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <main class="game">
@@ -26,11 +26,23 @@
     <button id="restart" class="restart" type="button">Nueva partida</button>
   </main>
 
+  <div id="gameOver" class="game-over" hidden>
+    <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
+      <h2 id="gameOverTitle">¡Game Over!</h2>
+      <p>No quedan movimientos posibles.</p>
+      <p class="final-score">Puntaje final: <strong id="finalScore">0</strong></p>
+      <div class="game-over-actions">
+        <button id="playAgain" class="restart primary" type="button">Volver a jugar</button>
+        <button id="exitGame" class="restart" type="button">Salir</button>
+      </div>
+    </div>
+  </div>
+
   <div class="rotate-notice" role="alert">
     <div class="phone" aria-hidden="true">📱</div>
     <p>Gira tu teléfono en vertical para jugar</p>
   </div>
 
-  <script src="script.js?v=9"></script>
+  <script src="script.js?v=10"></script>
 </body>
 </html>

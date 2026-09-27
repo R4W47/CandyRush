@@ -38,7 +38,7 @@
     swap: 180 * MOVE_SCALE,        // intercambio de dos caramelos
     fallPerRow: 70 * MOVE_SCALE,   // tiempo de caída por cada fila
     fallMin: 160 * MOVE_SCALE,     // caída mínima
-    shuffle: 300 * MOVE_SCALE,     // mezcla del tablero
+    appear: 300 * MOVE_SCALE,      // entrada del tablero al iniciar
     pop: 250 * REACTION_SCALE,     // caramelos que desaparecen por combinación
     boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por un especial
     transform: 300 * REACTION_SCALE, // caramelos que se convierten en especiales
@@ -57,12 +57,17 @@
   let score = 0;
   let busy = false;     // true mientras hay animaciones: bloquea nuevos movimientos
   let selected = null;  // casilla seleccionada con un toque (modo tocar-tocar)
+  let gameOver = false; // true cuando no quedan movimientos: el tablero queda bloqueado
 
   const boardEl = document.getElementById("board");
   const scoreEl = document.getElementById("score");
   const scoreBoxEl = document.getElementById("scoreBox");
   const messageEl = document.getElementById("message");
   const restartBtn = document.getElementById("restart");
+  const gameOverEl = document.getElementById("gameOver");
+  const finalScoreEl = document.getElementById("finalScore");
+  const playAgainBtn = document.getElementById("playAgain");
+  const exitBtn = document.getElementById("exitGame");
 
   // =====================================================================
   // 3. LÓGICA PURA (solo trabaja con datos, nunca toca la pantalla)
@@ -320,19 +325,6 @@
     return { moves, spawns };
   }
 
-  // Mezcla los caramelos existentes hasta obtener un tablero jugable sin combinaciones
-  function shuffled(g) {
-    for (let attempt = 0; attempt < 200; attempt++) {
-      const copy = g.slice();
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        swapIn(copy, i, j);
-      }
-      if (!findMatches(copy).groups.length && hasPossibleMove(copy)) return copy;
-    }
-    return createGrid(); // muy improbable: si no se logra, tablero nuevo
-  }
-
   // =====================================================================
   // 4. DIBUJO Y ANIMACIÓN (la pantalla solo refleja lo que dice el grid)
   // =====================================================================
@@ -344,7 +336,7 @@
   const rootStyle = document.documentElement.style;
   rootStyle.setProperty("--pop-time", `${TIME.pop}ms`);
   rootStyle.setProperty("--boom-time", `${TIME.boom}ms`);
-  rootStyle.setProperty("--appear-time", `${TIME.shuffle}ms`);
+  rootStyle.setProperty("--appear-time", `${TIME.appear}ms`);
   rootStyle.setProperty("--born-time", `${TIME.transform}ms`);
 
   // Qué imagen corresponde a cada caramelo
@@ -504,14 +496,6 @@
     await wait(longest);
   }
 
-  async function reshuffle() {
-    showMessage("Sin movimientos: mezclando…");
-    els.forEach((el) => el.classList.add("pop"));
-    await wait(TIME.pop);
-    grid = shuffled(grid);
-    render("appear");
-    await wait(TIME.shuffle);
-  }
 
   // =====================================================================
   // 5. PUNTAJE Y MENSAJES
@@ -532,6 +516,21 @@
     void scoreBoxEl.offsetWidth; // reinicia la animación
     scoreBoxEl.classList.add("bump");
     if (combo >= 2) showMessage(`¡Combo x${combo}!`);
+  }
+
+  // Fin de la partida: se bloquea el tablero y aparece el mensaje
+  async function showGameOver() {
+    gameOver = true;
+    clearSelection();
+    await wait(600); // una pausa para que se vea cómo quedó el tablero
+    finalScoreEl.textContent = score;
+    gameOverEl.hidden = false;
+    playAgainBtn.focus();
+  }
+
+  function hideGameOver() {
+    gameOver = false;
+    gameOverEl.hidden = true;
   }
 
   // =====================================================================
@@ -628,7 +627,7 @@
   }
 
   async function playTurn(a, b) {
-    if (busy || a === null || b === null || !areAdjacent(a, b)) return;
+    if (busy || gameOver || a === null || b === null || !areAdjacent(a, b)) return;
     busy = true;
     clearSelection();
 
@@ -652,7 +651,7 @@
       }
 
       await settleBoard(2);
-      if (!hasPossibleMove(grid)) await reshuffle();
+      if (!hasPossibleMove(grid)) await showGameOver();
     } finally {
       busy = false;
     }
@@ -706,7 +705,7 @@
   let drag = null;
 
   boardEl.addEventListener("pointerdown", (e) => {
-    if (busy) return;
+    if (busy || gameOver) return;
     const index = cellFromPoint(e.clientX, e.clientY);
     if (index === null) return;
     drag = { index, x: e.clientX, y: e.clientY, swiped: false };
@@ -727,7 +726,7 @@
     if (!drag) return;
     const { index, swiped } = drag;
     drag = null;
-    if (!swiped && !busy) handleTap(index); // fue un toque, no un deslizamiento
+    if (!swiped && !busy && !gameOver) handleTap(index); // fue un toque, no un deslizamiento
   });
 
   boardEl.addEventListener("pointercancel", () => (drag = null));
@@ -735,6 +734,16 @@
   restartBtn.addEventListener("click", () => {
     if (!busy) startGame();
   });
+
+  playAgainBtn.addEventListener("click", startGame);
+
+  // "Salir": todavía no hay menú ni pantalla de inicio a donde volver.
+  // Por ahora reinicia el nivel; cuando exista el menú, aquí se cambia a ir al menú.
+  exitBtn.addEventListener("click", exitGame);
+
+  function exitGame() {
+    startGame();
+  }
 
   // =====================================================================
   // 8. INICIO
@@ -765,6 +774,7 @@
   }
 
   function startGame() {
+    hideGameOver();
     score = 0;
     scoreEl.textContent = "0";
     messageEl.textContent = "";
