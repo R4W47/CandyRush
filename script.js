@@ -12,7 +12,7 @@
   // Las imágenes se llaman así: red.png (normal), redH.png (rayas horizontales),
   // redV.png (rayas verticales). Si falta una imagen de rayas, se dibujan con CSS.
   const CANDY_NAMES = ["red", "green", "blue", "orange", "purple", "yellow"];
-  const IMAGE_VERSION = 1; // súbelo si reemplazas imágenes con el mismo nombre
+  const IMAGE_VERSION = 2; // súbelo si reemplazas imágenes con el mismo nombre
   const imagePath = (name) => `images/candies/${name}.png?v=${IMAGE_VERSION}`;
   const CANDY_IMAGES = CANDY_NAMES.map((name) => imagePath(name));
   const STRIPED_IMAGES = {
