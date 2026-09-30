@@ -27,7 +27,7 @@ html {
 }
 
 body {
-  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  font-family: "Fredoka", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   color: var(--pink-dark);
   display: flex;
   justify-content: center;
@@ -92,7 +92,353 @@ body::after {
   gap: 12px;
 }
 
+/* ---------- Pantallas ---------- */
+
+.screen[hidden] {
+  display: none !important;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* Botón de volver (mapa y juego) */
+.back-btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--pink);
+  background: rgba(255, 255, 255, 0.92);
+  border: 2px solid var(--pink);
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.back-btn.small {
+  width: auto;
+  height: auto;
+  padding: 3px 12px;
+  font-size: 0.9rem;
+  border-radius: 20px;
+}
+
+.back-btn:focus-visible,
+.big-btn:focus-visible,
+.level-node:focus-visible {
+  outline: 3px solid var(--pink-dark);
+  outline-offset: 2px;
+}
+
+/* Estrellita pequeña (usa la imagen de la estrella amarilla) */
+.mini-star {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+  background: var(--star-img) center / contain no-repeat;
+  filter: grayscale(1) opacity(0.4);
+}
+
+.mini-star.earned {
+  filter: none;
+}
+
+/* ---------- Portada ---------- */
+
+.home {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: min(360px, 100%);
+  padding: 28px 22px 26px;
+  background: rgba(255, 255, 255, 0.85);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  border-radius: 28px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.logo-candies {
+  display: flex;
+  gap: 4px;
+}
+
+.logo-candy {
+  width: 40px;
+  height: 40px;
+  background: center / contain no-repeat;
+  animation: candy-hop 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.15s);
+}
+
+.logo {
+  margin: 0;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  white-space: normal;
+  font-size: 3.4rem;
+  font-weight: 700;
+  line-height: 0.95;
+  color: var(--pink);
+  text-shadow:
+    0 3px 0 #fff,
+    0 5px 0 #f8bbd0,
+    0 8px 14px rgba(194, 24, 91, 0.35);
+  letter-spacing: 0.02em;
+}
+
+.home-stars {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--pink-dark);
+}
+
+.big-btn {
+  width: 100%;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+  padding: 12px 20px;
+  color: var(--pink);
+  background: #fff;
+  border: 3px solid var(--pink);
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #f3a6c1;
+  transition: transform 100ms, box-shadow 100ms;
+}
+
+.big-btn.primary {
+  color: #fff;
+  background: var(--pink);
+  box-shadow: 0 4px 0 var(--pink-dark);
+}
+
+.big-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--pink-dark);
+}
+
+/* ---------- Mapa de niveles ---------- */
+
+.map {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 236, 244, 0.55);
+}
+
+.map-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+}
+
+.map-bar h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--pink);
+}
+
+.map-stars {
+  justify-self: end;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--pink-dark);
+  background: #fff4f8;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.map-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-path {
+  position: relative;
+  width: min(480px, 100%);
+  margin: 0 auto;
+}
+
+.map-road {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.road-base {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 26px;
+  stroke-linecap: round;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
+}
+
+.road-dash {
+  fill: none;
+  stroke: #f8a5c2;
+  stroke-width: 6px;
+  stroke-dasharray: 2 14;
+  stroke-linecap: round;
+}
+
+.zone-label {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 4px 16px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--zone);
+  border: 3px solid #fff;
+  border-radius: 20px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+.level-node {
+  position: absolute;
+  width: 58px;
+  height: 58px;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #fff8 0 18%, transparent 19%), var(--zone);
+  border: 4px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2), 0 6px 10px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.3);
+}
+
+.level-node:active {
+  transform: translate(-50%, -50%) scale(0.92);
+}
+
+.level-node.hard {
+  border-color: #ff7043;
+  box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(0, 0, 0, 0.2), 0 0 16px 4px rgba(255, 112, 67, 0.6);
+}
+
+.level-node.locked {
+  background: #d9c6cc;
+  cursor: default;
+  font-size: 1.1rem;
+  text-shadow: none;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.12);
+}
+
+.level-node.current {
+  width: 68px;
+  height: 68px;
+  font-size: 1.6rem;
+  animation: node-pulse 1.6s ease-in-out infinite;
+}
+
+.node-fire {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  font-size: 1.1rem;
+  text-shadow: none;
+}
+
+.node-stars {
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 1px;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.node-pin {
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.3rem;
+  color: var(--pink);
+  text-shadow: 0 2px 0 #fff;
+  animation: pin-bob 1s ease-in-out infinite;
+}
+
+/* Tarjeta del nivel */
+.card-zone {
+  font-weight: 600;
+  color: var(--pink-dark);
+}
+
+.card-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.card-info div {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 4px;
+  background: #fff4f8;
+  border-radius: 12px;
+}
+
+.card-info span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--pink-dark);
+}
+
+.card-info strong {
+  font-size: 1.2rem;
+  color: var(--pink);
+}
+
 /* ---------- Encabezado ---------- */
+
+.hud-top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+}
+
+.hud-top .back-btn {
+  justify-self: start;
+}
 
 .hud {
   display: flex;
@@ -578,6 +924,20 @@ h1 {
   50% { transform: scale(1.2); }
 }
 
+@keyframes candy-hop {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-10px) rotate(-8deg); }
+}
+
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2), 0 0 0 0 rgba(236, 64, 122, 0.55); }
+  50%      { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.2), 0 0 0 12px rgba(236, 64, 122, 0); }
+}
+
+@keyframes pin-bob {
+  50% { transform: translate(-50%, -6px); }
+}
+
 @keyframes bump {
   50% { transform: scale(1.25); }
 }
@@ -594,8 +954,8 @@ h1 {
 /* Va al final para que gane sobre las reglas anteriores */
 /* Celulares en horizontal: se oculta el juego y se pide girar el teléfono */
 @media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
-  .game {
-    display: none;
+  .screen {
+    display: none !important;
   }
 
   .rotate-notice {

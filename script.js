@@ -678,7 +678,7 @@
 
     if (won) {
       primaryBtn.textContent = "Siguiente nivel";
-      onPrimary = () => startLevel(level.number + 1);
+      onPrimary = () => location.replace(`#nivel-${level.number + 1}`);
       secondaryBtn.textContent = "Repetir";
       secondaryBtn.hidden = false;
       onSecondary = () => startLevel(level.number);
@@ -914,13 +914,9 @@
   primaryBtn.addEventListener("click", () => onPrimary && onPrimary());
   secondaryBtn.addEventListener("click", () => onSecondary && onSecondary());
 
-  // "Salir": todavía no hay mapa de niveles a donde volver (será la fase 2).
-  // Por ahora reinicia el nivel actual; cuando exista el mapa, aquí se cambia.
-  exitBtn.addEventListener("click", exitGame);
-
-  function exitGame() {
-    startLevel(level.number);
-  }
+  // "Mapa" (en el mensaje final) y "‹ Mapa" (arriba en el juego) vuelven al mapa
+  exitBtn.addEventListener("click", () => goToMap());
+  $("gameBack").addEventListener("click", () => goToMap());
 
   // =====================================================================
   // 8. INICIO
@@ -984,7 +980,13 @@
     return { best: entry.best, isNewBest: points > previousBest, previousBest };
   }
 
-  function startLevel(n) {
+  // Espera a que termine la jugada en curso (por si el jugador sale a mitad de una cascada)
+  async function whenIdle() {
+    while (busy) await wait(50);
+  }
+
+  async function startLevel(n) {
+    await whenIdle();
     hideResult();
     level = generateLevel(n);
     activeColors = level.colors;
@@ -1001,6 +1003,223 @@
     showMessage(level.hard ? `🔥 ¡Nivel ${n} difícil!` : `¡Nivel ${n}! Llega a ${formatNumber(level.target)} puntos`, 3000);
   }
 
+  // =====================================================================
+  // 9. PANTALLAS: PORTADA, MAPA Y JUEGO
+  // =====================================================================
+  // Cada pantalla tiene su dirección, así el botón "atrás" del celular funciona:
+  //   (vacío)    portada
+  //   #mapa      mapa de niveles
+  //   #nivel-12  jugando el nivel 12
+
+  const screens = { home: $("home"), map: $("map"), game: $("game") };
+  let currentScreen = null;
+  let gameFrom = null;   // desde dónde se entró al juego ("map", "home" o null)
+  let mapFromHome = false;
+
+  function showScreen(name) {
+    for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+    document.body.dataset.screen = name;
+    currentScreen = name;
+  }
+
+  function goTo(hash) {
+    if (location.hash === hash) route();
+    else location.hash = hash;
+  }
+
+  // Volver al mapa desde el juego sin dejar pantallas repetidas en el historial
+  function goToMap() {
+    if (gameFrom === "map") history.back();
+    else location.replace("#mapa");
+  }
+
+  function openLevel(n, from) {
+    gameFrom = from;
+    goTo(`#nivel-${n}`);
+  }
+
+  async function route() {
+    hideLevelCard();
+    const match = location.hash.match(/^#nivel-(\d+)$/);
+    if (match) {
+      const n = Number(match[1]);
+      if (n < 1 || n > progress.unlocked) {
+        location.replace("#mapa"); // nivel bloqueado: al mapa
+        return;
+      }
+      const isNewEntry = currentScreen !== "game" || !level || level.number !== n;
+      showScreen("game");
+      if (isNewEntry) await startLevel(n);
+      return;
+    }
+    hideResult();
+    if (location.hash === "#mapa") {
+      showScreen("map");
+      renderMap();
+    } else {
+      showScreen("home");
+      renderHome();
+    }
+  }
+
+  const totalStars = () =>
+    Object.values(progress.levels).reduce((sum, entry) => sum + (entry.stars || 0), 0);
+
+  // ---------- Portada ----------
+
+  function renderHome() {
+    $("homeLevel").textContent = progress.unlocked;
+    $("homeStars").textContent = totalStars();
+  }
+
+  // los caramelos que decoran el logo
+  $("logoCandies").innerHTML = CANDY_IMAGES.map(
+    (src, i) => `<span class="logo-candy" style="--i:${i}; background-image:url('${src}')"></span>`
+  ).join("");
+
+  $("homePlay").addEventListener("click", () => openLevel(progress.unlocked, "home"));
+  $("homeMap").addEventListener("click", () => {
+    mapFromHome = true;
+    goTo("#mapa");
+  });
+
+  // ---------- Mapa de niveles ----------
+
+  // Cada 20 niveles empieza una zona nueva, con su nombre y su color
+  const ZONES = [
+    { name: "Dulcería", color: "#ec407a" },
+    { name: "Bosque de Chocolate", color: "#8d6e63" },
+    { name: "Valle de Menta", color: "#26a69a" },
+    { name: "Montaña de Caramelo", color: "#ffa000" },
+    { name: "Nubes de Algodón", color: "#42a5f5" },
+    { name: "Castillo de Gomitas", color: "#ab47bc" },
+  ];
+  const LEVELS_PER_ZONE = 20;
+
+  function zoneOf(n) {
+    const index = Math.floor((n - 1) / LEVELS_PER_ZONE);
+    const zone = ZONES[index % ZONES.length];
+    const round = Math.floor(index / ZONES.length);
+    return { ...zone, name: round ? `${zone.name} ${round + 1}` : zone.name, first: index * LEVELS_PER_ZONE + 1 };
+  }
+
+  const mapScrollEl = $("mapScroll");
+  const mapPathEl = $("mapPath");
+  const STEP = 104;        // distancia vertical entre niveles (px)
+  const MAP_PADDING = 110; // espacio arriba y abajo del camino
+
+  const starIcons = (earned) =>
+    [0, 1, 2].map((i) => `<span class="mini-star${i < earned ? " earned" : ""}"></span>`).join("");
+
+  function renderMap() {
+    const unlocked = progress.unlocked;
+    const count = unlocked + 12; // los desbloqueados y algunos más por delante
+    const height = MAP_PADDING * 2 + (count - 1) * STEP;
+    mapPathEl.style.height = `${height}px`;
+
+    // posición de cada nivel: el 1 abajo, subiendo en zigzag suave
+    const pos = (n) => ({
+      x: 50 + Math.sin(n * 0.9) * 28, // % del ancho
+      y: height - MAP_PADDING - (n - 1) * STEP, // px desde arriba
+    });
+
+    // el camino: una curva que une todos los niveles
+    let d = "";
+    for (let n = 1; n <= count; n++) {
+      const p = pos(n);
+      if (n === 1) d += `M ${p.x} ${p.y}`;
+      else {
+        const q = pos(n - 1);
+        const midY = (p.y + q.y) / 2;
+        d += ` C ${q.x} ${midY} ${p.x} ${midY} ${p.x} ${p.y}`;
+      }
+    }
+    let html = `<svg class="map-road" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true">
+      <path d="${d}" class="road-base" vector-effect="non-scaling-stroke"/>
+      <path d="${d}" class="road-dash" vector-effect="non-scaling-stroke"/>
+    </svg>`;
+
+    for (let n = 1; n <= count; n++) {
+      const p = pos(n);
+      const zone = zoneOf(n);
+      if (n === zone.first) {
+        html += `<div class="zone-label" style="top:${p.y + STEP * 0.55}px; --zone:${zone.color}">${zone.name}</div>`;
+      }
+      const info = progress.levels[n] || { stars: 0 };
+      const locked = n > unlocked;
+      const current = n === unlocked;
+      const hard = generateLevel(n).hard;
+      const classes = ["level-node", locked && "locked", current && "current", hard && "hard", info.stars && "done"]
+        .filter(Boolean)
+        .join(" ");
+      html += `<button class="${classes}" data-level="${n}" style="left:${p.x}%; top:${p.y}px; --zone:${zone.color}"
+        ${locked ? "disabled" : ""} aria-label="Nivel ${n}${locked ? " (bloqueado)" : ""}">
+        <span class="node-number">${locked ? "🔒" : n}</span>
+        ${hard && !locked ? '<span class="node-fire">🔥</span>' : ""}
+        ${info.stars ? `<span class="node-stars">${starIcons(info.stars)}</span>` : ""}
+        ${current ? '<span class="node-pin" aria-hidden="true">▼</span>' : ""}
+      </button>`;
+    }
+    mapPathEl.innerHTML = html;
+    $("mapStars").textContent = totalStars();
+
+    // desplazarse hasta el nivel actual
+    requestAnimationFrame(() => {
+      mapScrollEl.scrollTop = pos(unlocked).y - mapScrollEl.clientHeight / 2;
+    });
+  }
+
+  mapPathEl.addEventListener("click", (e) => {
+    const node = e.target.closest(".level-node");
+    if (node && !node.disabled) showLevelCard(Number(node.dataset.level));
+  });
+
+  $("mapBack").addEventListener("click", () => {
+    if (mapFromHome) {
+      mapFromHome = false;
+      history.back();
+    } else {
+      location.replace("#");
+    }
+  });
+
+  // ---------- Tarjeta del nivel (antes de jugar) ----------
+
+  const levelCardEl = $("levelCard");
+  let cardLevel = null;
+
+  function showLevelCard(n) {
+    const lvl = generateLevel(n);
+    const info = progress.levels[n] || { stars: 0, best: 0 };
+    cardLevel = n;
+    $("cardTitle").textContent = `Nivel ${n}`;
+    $("cardZone").textContent = lvl.hard ? `🔥 Nivel difícil · ${zoneOf(n).name}` : zoneOf(n).name;
+    $("cardTarget").textContent = formatNumber(lvl.target);
+    $("cardMoves").textContent = lvl.moves;
+    $("cardBest").textContent = info.best ? formatNumber(info.best) : "—";
+    document.querySelectorAll("#cardStars .star").forEach((star, i) => {
+      star.classList.toggle("earned", i < info.stars);
+    });
+    levelCardEl.hidden = false;
+    $("cardPlay").focus();
+  }
+
+  function hideLevelCard() {
+    levelCardEl.hidden = true;
+  }
+
+  $("cardPlay").addEventListener("click", () => openLevel(cardLevel, "map"));
+  $("cardClose").addEventListener("click", hideLevelCard);
+  levelCardEl.addEventListener("click", (e) => {
+    if (e.target === levelCardEl) hideLevelCard(); // tocar fuera de la tarjeta la cierra
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") hideLevelCard();
+  });
+
+  // ---------- Arranque ----------
+
   progress = loadProgress();
-  preloadImages().then(() => startLevel(progress.current));
+  window.addEventListener("hashchange", route);
+  preloadImages().then(route);
 })();
