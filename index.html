@@ -8,13 +8,26 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="images/icon-192.png">
   <link rel="apple-touch-icon" href="images/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <main class="game">
     <header class="hud">
       <h1>Candy Rush</h1>
-      <div class="score" id="scoreBox">Puntaje: <strong id="score">0</strong></div>
+      <div class="stats">
+        <div class="stat"><span>Nivel</span><strong id="levelNum">1</strong></div>
+        <div class="stat moves" id="movesBox"><span>Movimientos</span><strong id="moves">0</strong></div>
+        <div class="stat" id="scoreBox"><span>Puntos</span><strong id="score">0</strong></div>
+      </div>
+      <div class="goal">
+        <div class="goal-bar" aria-hidden="true">
+          <div id="goalFill" class="goal-fill"></div>
+          <span id="goalMark1" class="goal-mark"></span>
+          <span id="goalMark2" class="goal-mark"></span>
+          <span id="goalMark3" class="goal-mark"></span>
+        </div>
+        <div class="goal-text">Objetivo <strong id="target">0</strong></div>
+      </div>
     </header>
 
     <div class="board-frame">
@@ -23,16 +36,21 @@
 
     <p id="message" class="message" aria-live="polite"></p>
 
-    <button id="restart" class="restart" type="button">Nueva partida</button>
+    <button id="restart" class="restart" type="button">Reiniciar nivel</button>
   </main>
 
-  <div id="gameOver" class="game-over" hidden>
-    <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="gameOverTitle">
-      <h2 id="gameOverTitle">¡Game Over!</h2>
-      <p>No quedan movimientos posibles.</p>
-      <p class="final-score">Puntaje final: <strong id="finalScore">0</strong></p>
+  <div id="result" class="game-over" hidden>
+    <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <h2 id="resultTitle"></h2>
+      <div class="result-stars" id="resultStars" aria-hidden="true">
+        <span class="star"></span><span class="star big"></span><span class="star"></span>
+      </div>
+      <p id="resultText"></p>
+      <p class="final-score">Puntaje: <strong id="finalScore">0</strong></p>
+      <p class="best-score">Récord del nivel: <strong id="bestScore">0</strong></p>
       <div class="game-over-actions">
-        <button id="playAgain" class="restart primary" type="button">Volver a jugar</button>
+        <button id="resultPrimary" class="restart primary" type="button"></button>
+        <button id="resultSecondary" class="restart" type="button"></button>
         <button id="exitGame" class="restart" type="button">Salir</button>
       </div>
     </div>
@@ -43,6 +61,6 @@
     <p>Gira tu teléfono en vertical para jugar</p>
   </div>
 
-  <script src="script.js?v=11"></script>
+  <script src="script.js?v=12"></script>
 </body>
 </html>

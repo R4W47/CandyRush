@@ -7,8 +7,9 @@
   --pink: #c2185b;
   --pink-dark: #8e0f42;
   --pink-soft: #ffe6f0;
+  --star-img: url("images/candies/yellow.png?v=2"); /* la estrella de los objetivos */
   /* tamaño de cada casilla: se adapta al ancho y al alto de la pantalla */
-  --cell: min(11vw, calc((100vh - 220px) / 8), 80px);
+  --cell: min(11vw, calc((100vh - 290px) / 8), 80px);
 }
 
 * {
@@ -55,7 +56,7 @@ body::after {
 
 @supports (height: 100dvh) {
   :root {
-    --cell: min(11vw, calc((100dvh - 220px) / 8), 80px);
+    --cell: min(11vw, calc((100dvh - 290px) / 8), 80px);
   }
 }
 
@@ -95,39 +96,124 @@ body::after {
 
 .hud {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   width: calc(var(--cell) * 8 + 24px);
 }
 
 h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   color: var(--pink);
   background: rgba(255, 255, 255, 0.9);
-  padding: 2px 14px;
+  padding: 2px 16px;
   border-radius: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   white-space: nowrap;
 }
 
-.score {
-  background: rgba(255, 255, 255, 0.9);
-  padding: 6px 14px;
-  border-radius: 20px;
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1.2fr;
+  gap: 6px;
+  width: 100%;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+  color: var(--pink);
+  line-height: 1.1;
+}
+
+.stat span {
+  font-size: 0.7rem;
   font-weight: bold;
-  color: var(--pink);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  color: var(--pink-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat strong {
+  display: inline-block;
+  font-size: 1.25rem;
+}
+
+.stat.bump strong {
+  animation: bump 300ms ease-out;
+}
+
+/* Pocos movimientos: el contador se pone rojo y late */
+.stat.moves.low {
+  background: #fff0f0;
+}
+
+.stat.moves.low strong {
+  color: #d32f2f;
+  animation: pulse 0.9s ease-in-out infinite;
+}
+
+/* Barra del objetivo con sus tres estrellas */
+.goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+}
+
+.goal-bar {
+  position: relative;
+  flex: 1;
+  height: 12px;
+  margin: 0 10px;
+  background: #f6d5de;
+  border-radius: 6px;
+}
+
+.goal-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ff8fb1, var(--pink));
+  transition: width 400ms ease-out;
+}
+
+.goal-mark {
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  background: var(--star-img) center / contain no-repeat;
+  filter: grayscale(1) opacity(0.45);
+  transition: filter 300ms;
+}
+
+.goal-mark.earned {
+  filter: none;
+  animation: bump 400ms ease-out;
+}
+
+.goal-text {
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--pink-dark);
   white-space: nowrap;
 }
 
-.score strong {
-  display: inline-block;
-}
-
-.score.bump strong {
-  animation: bump 300ms ease-out;
+.goal-text strong {
+  font-size: 0.95rem;
+  color: var(--pink);
 }
 
 /* ---------- Tablero ---------- */
@@ -292,6 +378,7 @@ h1 {
 
 .message {
   min-height: 2em;
+  text-align: center;
   margin: 0;
   padding: 4px 14px;
   border-radius: 20px;
@@ -371,6 +458,41 @@ h1 {
   font-weight: bold;
 }
 
+.best-score {
+  font-size: 0.9rem;
+  color: var(--pink-dark);
+}
+
+/* Estrellas del resultado: grises, y se encienden una por una */
+.result-stars {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+
+.result-stars .star {
+  width: 52px;
+  height: 52px;
+  background: var(--star-img) center / contain no-repeat;
+  filter: grayscale(1) opacity(0.3);
+}
+
+.result-stars .star.big {
+  width: 68px;
+  height: 68px;
+}
+
+.result-stars .star.earned {
+  filter: none;
+  animation: star-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.game-over.won .game-over-card {
+  border-color: #f5b000;
+}
+
 .game-over-actions {
   display: flex;
   flex-wrap: wrap;
@@ -445,6 +567,15 @@ h1 {
 @keyframes card-in {
   from { transform: scale(0.6); opacity: 0; }
   to   { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes star-in {
+  from { transform: scale(0) rotate(-90deg); filter: grayscale(1) opacity(0.3); }
+  to   { transform: scale(1) rotate(0); filter: none; }
+}
+
+@keyframes pulse {
+  50% { transform: scale(1.2); }
 }
 
 @keyframes bump {

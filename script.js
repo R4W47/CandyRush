@@ -31,6 +31,14 @@
 
   const POINTS_PER_CANDY = 10;
 
+  // ---------- Niveles ----------
+  // Puntos que hace en promedio un jugador por movimiento, según cuántos colores hay.
+  // Con menos colores salen más combinaciones y cascadas. Calibrado con un bot.
+  const POINTS_PER_MOVE = { 5: 234, 6: 113 };
+  const SAVE_KEY = "candyRush.progress.v1"; // dónde se guarda el progreso en el navegador
+  // Qué tan exigente es el objetivo (fracción de lo que suele lograr un jugador)
+  const DIFFICULTY = { start: 0.3, perLevel: 0.009, max: 0.72, hardBonus: 0.1, relaxDiscount: 0.08 };
+
   // Velocidad de las animaciones: 1 = rápido, 2 = el doble de lento, 1.5 = intermedio...
   const MOVE_SCALE = 2;       // movimientos: intercambio, caída y mezcla
   const REACTION_SCALE = 1.4; // reacciones: combinaciones y explosiones
@@ -57,17 +65,33 @@
   let score = 0;
   let busy = false;     // true mientras hay animaciones: bloquea nuevos movimientos
   let selected = null;  // casilla seleccionada con un toque (modo tocar-tocar)
-  let gameOver = false; // true cuando no quedan movimientos: el tablero queda bloqueado
+  let ended = false;    // true cuando terminó el nivel: el tablero queda bloqueado
+  let level = null;     // el nivel que se está jugando (lo crea generateLevel)
+  let movesLeft = 0;
+  let activeColors = [0, 1, 2, 3, 4, 5]; // colores que aparecen en este nivel
+  let progress = null;  // progreso guardado: niveles desbloqueados, estrellas y récords
 
-  const boardEl = document.getElementById("board");
-  const scoreEl = document.getElementById("score");
-  const scoreBoxEl = document.getElementById("scoreBox");
-  const messageEl = document.getElementById("message");
-  const restartBtn = document.getElementById("restart");
-  const gameOverEl = document.getElementById("gameOver");
-  const finalScoreEl = document.getElementById("finalScore");
-  const playAgainBtn = document.getElementById("playAgain");
-  const exitBtn = document.getElementById("exitGame");
+  const $ = (id) => document.getElementById(id);
+  const boardEl = $("board");
+  const scoreEl = $("score");
+  const scoreBoxEl = $("scoreBox");
+  const levelEl = $("levelNum");
+  const movesEl = $("moves");
+  const movesBoxEl = $("movesBox");
+  const targetEl = $("target");
+  const goalFillEl = $("goalFill");
+  const goalMarks = [$("goalMark1"), $("goalMark2"), $("goalMark3")];
+  const messageEl = $("message");
+  const restartBtn = $("restart");
+  const resultEl = $("result");
+  const resultTitleEl = $("resultTitle");
+  const resultTextEl = $("resultText");
+  const resultStars = [...document.querySelectorAll("#resultStars .star")];
+  const finalScoreEl = $("finalScore");
+  const bestScoreEl = $("bestScore");
+  const primaryBtn = $("resultPrimary");
+  const secondaryBtn = $("resultSecondary");
+  const exitBtn = $("exitGame");
 
   // =====================================================================
   // 3. LÓGICA PURA (solo trabaja con datos, nunca toca la pantalla)
@@ -76,7 +100,9 @@
   const rowOf = (i) => Math.floor(i / WIDTH);
   const colOf = (i) => i % WIDTH;
   const indexOf = (r, c) => r * WIDTH + c;
-  const randomColor = () => Math.floor(Math.random() * CANDY_IMAGES.length);
+  // Color al azar entre los que usa el nivel (rand permite usar un azar "con semilla")
+  const randomColor = (rand = Math.random) =>
+    activeColors[Math.floor(rand() * activeColors.length)];
   const candy = (color, special = null) => ({ color, special });
   const isStriped = (cell) => cell && (cell.special === STRIPED_H || cell.special === STRIPED_V);
   const sameColor = (x, y) => x && y && x.color !== null && x.color === y.color;
@@ -134,7 +160,7 @@
   }
 
   // Tablero inicial sin combinaciones y con al menos un movimiento posible
-  function createGrid() {
+  function createGrid(rand = Math.random) {
     let g;
     do {
       g = new Array(SIZE);
@@ -143,7 +169,7 @@
         const c = colOf(i);
         let color;
         do {
-          color = randomColor();
+          color = randomColor(rand);
         } while (
           (c >= 2 && g[i - 1].color === color && g[i - 2].color === color) ||
           (r >= 2 && g[i - WIDTH].color === color && g[i - 2 * WIDTH].color === color)
@@ -293,6 +319,70 @@
       }
     }
     return plans;
+  }
+
+  // Mezcla los caramelos existentes hasta obtener un tablero jugable sin combinaciones
+  function shuffled(g) {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const copy = g.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        swapIn(copy, i, j);
+      }
+      if (!findMatches(copy).groups.length && hasPossibleMove(copy)) return copy;
+    }
+    return createGrid(); // muy improbable: si no se logra, tablero nuevo
+  }
+
+  // ---------- Generador de niveles ----------
+
+  // Azar "con semilla": la misma semilla da siempre la misma secuencia de números.
+  // Así el nivel 7 es siempre el mismo nivel 7.
+  function seededRandom(seed) {
+    let t = seed >>> 0;
+    return () => {
+      t = (t + 0x6d2b79f5) >>> 0;
+      let x = Math.imul(t ^ (t >>> 15), 1 | t);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const roundTo = (value, step) => Math.max(step, Math.round(value / step) * step);
+
+  // Crea la configuración del nivel n: colores, movimientos, objetivo y estrellas.
+  // La dificultad sube con el nivel en forma de "serrucho":
+  // cada 5 niveles hay uno más difícil y después uno más relajado.
+  function generateLevel(n) {
+    const rand = seededRandom(n * 7919 + 17);
+
+    const colorCount = n <= 4 ? 5 : 6; // los primeros niveles, con menos colores: más cascadas
+    const order = [0, 1, 2, 3, 4, 5];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const colors = order.slice(0, colorCount).sort((a, b) => a - b);
+
+    const hard = n % 5 === 0;             // niveles 5, 10, 15...: más difíciles
+    const relaxed = n > 5 && n % 5 === 1; // niveles 6, 11, 16...: respiro
+    const baseMoves = Math.max(18, 26 - Math.floor(n / 4));
+    const moves = baseMoves + Math.floor(rand() * 3) - 1 + (relaxed ? 2 : 0);
+
+    let demand = DIFFICULTY.start + DIFFICULTY.perLevel * (n - 1);
+    demand = Math.min(demand, DIFFICULTY.max);
+    if (hard) demand += DIFFICULTY.hardBonus;
+    if (relaxed) demand -= DIFFICULTY.relaxDiscount;
+
+    const target = roundTo(POINTS_PER_MOVE[colorCount] * moves * demand, 50);
+    const stars = [target, roundTo(target * 1.35, 50), roundTo(target * 1.7, 50)];
+
+    return { number: n, colors, moves, target, stars, hard, seed: n * 7919 + 17 };
+  }
+
+  // Estrellas ganadas con un puntaje (0 si no llegó al objetivo)
+  function starsFor(points, lvl) {
+    return lvl.stars.filter((s) => points >= s).length;
   }
 
   // Hace caer los caramelos y rellena los huecos de arriba.
@@ -461,6 +551,16 @@
     await removeCells(clear, popCells);
   }
 
+  // Si el tablero se queda sin combinaciones posibles, se mezcla (no es culpa del jugador)
+  async function reshuffle() {
+    showMessage("Sin movimientos: mezclando…");
+    els.forEach((el) => el.classList.add("pop"));
+    await wait(TIME.pop);
+    grid = shuffled(grid);
+    render("appear");
+    await wait(TIME.appear);
+  }
+
   // Aplica la gravedad en el grid y anima la caída real de los caramelos
   async function dropCandies() {
     const { moves, spawns } = applyGravity(grid);
@@ -503,34 +603,94 @@
 
   let messageTimer = null;
 
-  function showMessage(text) {
+  function showMessage(text, ms = 1400) {
     messageEl.textContent = text;
     clearTimeout(messageTimer);
-    messageTimer = setTimeout(() => (messageEl.textContent = ""), 1400);
+    messageTimer = setTimeout(() => (messageEl.textContent = ""), ms);
+  }
+
+  const formatNumber = (n) => n.toLocaleString("es");
+
+  function bump(el) {
+    el.classList.remove("bump");
+    void el.offsetWidth; // reinicia la animación
+    el.classList.add("bump");
+  }
+
+  // Actualiza nivel, movimientos, puntaje y la barra del objetivo
+  function updateHud() {
+    levelEl.textContent = level.number;
+    movesEl.textContent = movesLeft;
+    movesBoxEl.classList.toggle("low", movesLeft <= 5);
+    scoreEl.textContent = formatNumber(score);
+    targetEl.textContent = formatNumber(level.target);
+    const top = level.stars[2];
+    goalFillEl.style.width = `${Math.min(100, (score / top) * 100)}%`;
+    goalMarks.forEach((mark, i) => {
+      mark.style.left = `${(level.stars[i] / top) * 100}%`;
+      mark.classList.toggle("earned", score >= level.stars[i]);
+    });
   }
 
   function addScore(points, combo = 1) {
+    const before = starsFor(score, level);
     score += points;
-    scoreEl.textContent = score;
-    scoreBoxEl.classList.remove("bump");
-    void scoreBoxEl.offsetWidth; // reinicia la animación
-    scoreBoxEl.classList.add("bump");
-    if (combo >= 2) showMessage(`¡Combo x${combo}!`);
+    updateHud();
+    bump(scoreBoxEl);
+    const after = starsFor(score, level);
+    if (after > before) {
+      showMessage(after === 1 ? "⭐ ¡Objetivo cumplido! Sigue sumando" : `${"⭐".repeat(after)} ¡${after} estrellas!`, 2000);
+    } else if (combo >= 2) {
+      showMessage(`¡Combo x${combo}!`);
+    }
   }
 
-  // Fin de la partida: se bloquea el tablero y aparece el mensaje
-  async function showGameOver() {
-    gameOver = true;
+  // ---------- Fin del nivel ----------
+
+  let onPrimary = null;   // qué hace cada botón del mensaje final (cambia si ganas o pierdes)
+  let onSecondary = null;
+
+  async function finishLevel() {
+    ended = true;
     clearSelection();
-    await wait(600); // una pausa para que se vea cómo quedó el tablero
-    finalScoreEl.textContent = score;
-    gameOverEl.hidden = false;
-    playAgainBtn.focus();
+    const stars = starsFor(score, level);
+    const won = stars > 0;
+    const record = saveResult(level.number, score, stars);
+
+    await wait(700); // una pausa para que se vea cómo quedó el tablero
+
+    resultTitleEl.textContent = won ? "¡Nivel superado!" : "Nivel fallido";
+    resultTextEl.textContent = won
+      ? record.isNewBest && record.previousBest > 0 ? "¡Nuevo récord en este nivel!" : `Nivel ${level.number} completado`
+      : `Te faltaron ${formatNumber(level.target - score)} puntos`;
+    finalScoreEl.textContent = formatNumber(score);
+    bestScoreEl.textContent = formatNumber(record.best);
+    resultStars.forEach((star, i) => {
+      star.classList.remove("earned");
+      star.style.animationDelay = `${300 + i * 300}ms`;
+      if (i < stars) star.classList.add("earned");
+    });
+
+    if (won) {
+      primaryBtn.textContent = "Siguiente nivel";
+      onPrimary = () => startLevel(level.number + 1);
+      secondaryBtn.textContent = "Repetir";
+      secondaryBtn.hidden = false;
+      onSecondary = () => startLevel(level.number);
+    } else {
+      primaryBtn.textContent = "Reintentar";
+      onPrimary = () => startLevel(level.number);
+      secondaryBtn.hidden = true;
+      onSecondary = null;
+    }
+
+    resultEl.classList.toggle("won", won);
+    resultEl.hidden = false;
+    primaryBtn.focus();
   }
 
-  function hideGameOver() {
-    gameOver = false;
-    gameOverEl.hidden = true;
+  function hideResult() {
+    resultEl.hidden = true;
   }
 
   // =====================================================================
@@ -626,8 +786,14 @@
     }
   }
 
+  function useMove() {
+    movesLeft--;
+    updateHud();
+    bump(movesBoxEl);
+  }
+
   async function playTurn(a, b) {
-    if (busy || gameOver || a === null || b === null || !areAdjacent(a, b)) return;
+    if (busy || ended || a === null || b === null || !areAdjacent(a, b)) return;
     busy = true;
     clearSelection();
 
@@ -637,21 +803,25 @@
       const B = grid[b];
 
       if (A.special === BOMB || B.special === BOMB) {
+        useMove();
         const bomb = B.special === BOMB ? b : a;
         await bombSwap(bomb, bomb === a ? b : a);
       } else if (A.special && B.special) {
+        useMove();
         await specialCombo(a, b);
       } else {
         const matches = findMatches(grid);
         if (!matches.groups.length) {
-          await swapCells(a, b); // no sirvió: los caramelos regresan
+          await swapCells(a, b); // no sirvió: los caramelos regresan (no gasta movimiento)
           return;
         }
+        useMove();
         await resolveMatches(matches, { a, b }, 1);
       }
 
       await settleBoard(2);
-      if (!hasPossibleMove(grid)) await showGameOver();
+      if (movesLeft === 0) await finishLevel();
+      else if (!hasPossibleMove(grid)) await reshuffle();
     } finally {
       busy = false;
     }
@@ -705,7 +875,7 @@
   let drag = null;
 
   boardEl.addEventListener("pointerdown", (e) => {
-    if (busy || gameOver) return;
+    if (busy || ended) return;
     const index = cellFromPoint(e.clientX, e.clientY);
     if (index === null) return;
     drag = { index, x: e.clientX, y: e.clientY, swiped: false };
@@ -726,23 +896,24 @@
     if (!drag) return;
     const { index, swiped } = drag;
     drag = null;
-    if (!swiped && !busy && !gameOver) handleTap(index); // fue un toque, no un deslizamiento
+    if (!swiped && !busy && !ended) handleTap(index); // fue un toque, no un deslizamiento
   });
 
   boardEl.addEventListener("pointercancel", () => (drag = null));
 
   restartBtn.addEventListener("click", () => {
-    if (!busy) startGame();
+    if (!busy) startLevel(level.number);
   });
 
-  playAgainBtn.addEventListener("click", startGame);
+  primaryBtn.addEventListener("click", () => onPrimary && onPrimary());
+  secondaryBtn.addEventListener("click", () => onSecondary && onSecondary());
 
-  // "Salir": todavía no hay menú ni pantalla de inicio a donde volver.
-  // Por ahora reinicia el nivel; cuando exista el menú, aquí se cambia a ir al menú.
+  // "Salir": todavía no hay mapa de niveles a donde volver (será la fase 2).
+  // Por ahora reinicia el nivel actual; cuando exista el mapa, aquí se cambia.
   exitBtn.addEventListener("click", exitGame);
 
   function exitGame() {
-    startGame();
+    startLevel(level.number);
   }
 
   // =====================================================================
@@ -773,15 +944,57 @@
     );
   }
 
-  function startGame() {
-    hideGameOver();
-    score = 0;
-    scoreEl.textContent = "0";
-    messageEl.textContent = "";
-    selected = null;
-    grid = createGrid();
-    render("appear");
+  // ---------- Progreso guardado en el navegador ----------
+  //   unlocked: el nivel más alto desbloqueado
+  //   current:  el último nivel que se jugó (se retoma al volver a abrir)
+  //   levels:   por cada nivel, sus mejores estrellas y su récord
+  function loadProgress() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (saved && saved.unlocked >= 1) return { levels: {}, current: 1, ...saved };
+    } catch (e) {
+      // sin acceso al almacenamiento: se juega sin guardar
+    }
+    return { unlocked: 1, current: 1, levels: {} };
   }
 
-  preloadImages().then(startGame);
+  function saveProgress() {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(progress));
+    } catch (e) {
+      // sin acceso al almacenamiento: no pasa nada, solo no se guarda
+    }
+  }
+
+  // Guarda el resultado de un nivel y devuelve el récord
+  function saveResult(n, points, stars) {
+    const entry = progress.levels[n] || { stars: 0, best: 0 };
+    const previousBest = entry.best;
+    entry.best = Math.max(entry.best, points);
+    entry.stars = Math.max(entry.stars, stars);
+    progress.levels[n] = entry;
+    if (stars > 0) progress.unlocked = Math.max(progress.unlocked, n + 1);
+    saveProgress();
+    return { best: entry.best, isNewBest: points > previousBest, previousBest };
+  }
+
+  function startLevel(n) {
+    hideResult();
+    level = generateLevel(n);
+    activeColors = level.colors;
+    movesLeft = level.moves;
+    score = 0;
+    ended = false;
+    selected = null;
+    progress.current = n;
+    saveProgress();
+
+    grid = createGrid(seededRandom(level.seed)); // el tablero inicial es siempre el mismo
+    render("appear");
+    updateHud();
+    showMessage(level.hard ? `🔥 ¡Nivel ${n} difícil!` : `¡Nivel ${n}! Llega a ${formatNumber(level.target)} puntos`, 3000);
+  }
+
+  progress = loadProgress();
+  preloadImages().then(() => startLevel(progress.current));
 })();
