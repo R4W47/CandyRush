@@ -639,7 +639,8 @@
     bump(scoreBoxEl);
     const after = starsFor(score, level);
     if (after > before) {
-      showMessage(after === 1 ? "⭐ ¡Objetivo cumplido! Sigue sumando" : `${"⭐".repeat(after)} ¡${after} estrellas!`, 2000);
+      const texts = ["", "⭐ ¡Objetivo cumplido! Ve por más estrellas", "⭐⭐ ¡2 estrellas! Una más y ganas", "⭐⭐⭐ ¡3 estrellas!"];
+      showMessage(texts[after], 2000);
     } else if (combo >= 2) {
       showMessage(`¡Combo x${combo}!`);
     }
@@ -660,9 +661,13 @@
     await wait(700); // una pausa para que se vea cómo quedó el tablero
 
     resultTitleEl.textContent = won ? "¡Nivel superado!" : "Nivel fallido";
-    resultTextEl.textContent = won
-      ? record.isNewBest && record.previousBest > 0 ? "¡Nuevo récord en este nivel!" : `Nivel ${level.number} completado`
-      : `Te faltaron ${formatNumber(level.target - score)} puntos`;
+    let text;
+    if (!won) text = `Te faltaron ${formatNumber(level.target - score)} puntos`;
+    else if (stars === 3 && movesLeft > 0)
+      text = `¡3 estrellas con ${movesLeft} movimiento${movesLeft === 1 ? "" : "s"} de sobra!`;
+    else if (record.isNewBest && record.previousBest > 0) text = "¡Nuevo récord en este nivel!";
+    else text = `Nivel ${level.number} completado`;
+    resultTextEl.textContent = text;
     finalScoreEl.textContent = formatNumber(score);
     bestScoreEl.textContent = formatNumber(record.best);
     resultStars.forEach((star, i) => {
@@ -820,7 +825,8 @@
       }
 
       await settleBoard(2);
-      if (movesLeft === 0) await finishLevel();
+      // el nivel termina al conseguir las 3 estrellas, o al acabarse los movimientos
+      if (score >= level.stars[2] || movesLeft === 0) await finishLevel();
       else if (!hasPossibleMove(grid)) await reshuffle();
     } finally {
       busy = false;
