@@ -519,9 +519,18 @@
     await wait(TIME.swap);
   }
 
+  // Vibración corta al explotar caramelos (si el teléfono lo permite)
+  const VIBRATION_MS = 40;
+  function vibrate() {
+    try {
+      if (navigator.vibrate) navigator.vibrate(VIBRATION_MS);
+    } catch (e) { /* algunos navegadores no lo permiten: se ignora */ }
+  }
+
   // Quita caramelos: los de una combinación "revientan" (pop),
   // los alcanzados por un especial "explotan" (boom)
   async function removeCells(cells, popCells) {
+    vibrate();
     let longest = 0;
     for (const i of cells) {
       const effect = popCells.has(i) ? "pop" : "boom";
