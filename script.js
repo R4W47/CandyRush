@@ -53,6 +53,58 @@
     sweep: 450 * REACTION_SCALE,   // animalito rayado que cruza el tablero
   };
 
+  // ---------- Mundos ----------
+  // Cada 100 niveles empieza un mundo nuevo. Cada mundo tiene su nombre, su color
+  // y sus fondos en images/worlds/:
+  //   <id>.jpg        fondo del juego en celular (vertical)
+  //   <id>-wide.jpg   fondo del juego en computadora (horizontal)
+  //   <id>-mapa.jpg   fondo del mapa (vertical, que se pueda repetir hacia arriba)
+  // Si falta alguna imagen, se usa el degradado "fallback" de ese mundo.
+  const LEVELS_PER_WORLD = 100;
+  const WORLD_IMAGE_VERSION = 1; // súbelo si reemplazas imágenes con el mismo nombre
+  const WORLDS = [
+    { id: "pradera", name: "Pradera Verde", color: "#43a047",
+      fallback: "linear-gradient(#bfe9ff, #d8f5c4 35%, #8bc34a 70%, #5a9e2f)" },
+    { id: "bosque", name: "Bosque de Hongos", color: "#8d6e63",
+      fallback: "linear-gradient(#cfe8c8, #7cb36a 40%, #4e7d3a 75%, #3b5e2b)" },
+    { id: "playa", name: "Playa Soleada", color: "#039be5",
+      fallback: "linear-gradient(#aee4ff, #7fd3f7 40%, #f6e3a8 70%, #e9c97a)" },
+    { id: "selva", name: "Selva Tropical", color: "#00897b",
+      fallback: "linear-gradient(#b9f0d8, #4fbf8f 40%, #1f8a63 75%, #13684a)" },
+    { id: "desierto", name: "Desierto de Cactus", color: "#fb8c00",
+      fallback: "linear-gradient(#ffe0b2, #ffcc80 40%, #f0a85b 75%, #d9853b)" },
+    { id: "nieve", name: "Montaña Nevada", color: "#5c9ccf",
+      fallback: "linear-gradient(#dff1ff, #f4fbff 40%, #cfe3f2 75%, #a9c7de)" },
+    { id: "nubes", name: "Reino de las Nubes", color: "#8e24aa",
+      fallback: "linear-gradient(#e7d9ff, #f8f0ff 40%, #d9c4f5 75%, #b79be6)" },
+  ];
+
+  const worldImage = (id, suffix = "") => `images/worlds/${id}${suffix}.jpg?v=${WORLD_IMAGE_VERSION}`;
+
+  // Mundo del nivel n. Al terminar la lista, los mundos se repiten ("Pradera Verde 2"...)
+  function worldOf(n) {
+    const index = Math.floor((n - 1) / LEVELS_PER_WORLD);
+    const world = WORLDS[index % WORLDS.length];
+    const round = Math.floor(index / WORLDS.length);
+    return {
+      ...world,
+      index,
+      name: round ? `${world.name} ${round + 1}` : world.name,
+      first: index * LEVELS_PER_WORLD + 1,
+      last: (index + 1) * LEVELS_PER_WORLD,
+    };
+  }
+
+  // Pone el fondo del juego según el mundo del nivel n
+  function applyWorld(n) {
+    const world = worldOf(n);
+    const root = document.documentElement.style;
+    root.setProperty("--bg-image", `url("${worldImage(world.id)}")`);
+    root.setProperty("--bg-image-wide", `url("${worldImage(world.id, "-wide")}")`);
+    root.setProperty("--bg-fallback", world.fallback);
+    root.setProperty("--world", world.color);
+  }
+
   // =====================================================================
   // 2. ESTADO
   // =====================================================================
@@ -1049,6 +1101,7 @@
     await whenIdle();
     hideResult();
     level = generateLevel(n);
+    applyWorld(n);
     activeColors = level.colors;
     movesLeft = level.moves;
     score = 0;
@@ -1128,6 +1181,7 @@
   // ---------- Portada ----------
 
   function renderHome() {
+    applyWorld(progress.unlocked);
     $("homeLevel").textContent = progress.unlocked;
     $("homeStars").textContent = totalStars();
   }
@@ -1144,24 +1198,6 @@
   });
 
   // ---------- Mapa de niveles ----------
-
-  // Cada 20 niveles empieza una zona nueva, con su nombre y su color
-  const ZONES = [
-    { name: "Dulcería", color: "#ec407a" },
-    { name: "Bosque de Chocolate", color: "#8d6e63" },
-    { name: "Valle de Menta", color: "#26a69a" },
-    { name: "Montaña de Caramelo", color: "#ffa000" },
-    { name: "Nubes de Algodón", color: "#42a5f5" },
-    { name: "Castillo de Gomitas", color: "#ab47bc" },
-  ];
-  const LEVELS_PER_ZONE = 20;
-
-  function zoneOf(n) {
-    const index = Math.floor((n - 1) / LEVELS_PER_ZONE);
-    const zone = ZONES[index % ZONES.length];
-    const round = Math.floor(index / ZONES.length);
-    return { ...zone, name: round ? `${zone.name} ${round + 1}` : zone.name, first: index * LEVELS_PER_ZONE + 1 };
-  }
 
   const mapScrollEl = $("mapScroll");
   const mapPathEl = $("mapPath");
@@ -1194,14 +1230,24 @@
         d += ` C ${q.x} ${midY} ${p.x} ${midY} ${p.x} ${p.y}`;
       }
     }
-    let html = `<svg class="map-road" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true">
+    // una franja de fondo por cada mundo visible en el mapa
+    let html = "";
+    const FADE = 160; // px en que un mundo se mezcla con el siguiente
+    for (let w = worldOf(1); w.first <= count; w = worldOf(w.last + 1)) {
+      const bottom = w.first === 1 ? height : pos(w.first).y + STEP / 2 + FADE;
+      const top = w.last >= count ? 0 : pos(w.last).y - STEP / 2;
+      html += `<div class="world-band${w.first === 1 ? " first" : ""}" style="top:${top}px; height:${bottom - top}px;
+        --map-image:url('${worldImage(w.id, "-mapa")}'); --bg-fallback:${w.fallback}"></div>`;
+    }
+
+    html += `<svg class="map-road" viewBox="0 0 100 ${height}" preserveAspectRatio="none" aria-hidden="true">
       <path d="${d}" class="road-base" vector-effect="non-scaling-stroke"/>
       <path d="${d}" class="road-dash" vector-effect="non-scaling-stroke"/>
     </svg>`;
 
     for (let n = 1; n <= count; n++) {
       const p = pos(n);
-      const zone = zoneOf(n);
+      const zone = worldOf(n);
       if (n === zone.first) {
         html += `<div class="zone-label" style="top:${p.y + STEP * 0.55}px; --zone:${zone.color}">${zone.name}</div>`;
       }
@@ -1221,6 +1267,7 @@
       </button>`;
     }
     mapPathEl.innerHTML = html;
+    applyWorld(unlocked);
     $("mapStars").textContent = totalStars();
 
     // desplazarse hasta el nivel actual
@@ -1253,7 +1300,7 @@
     const info = progress.levels[n] || { stars: 0, best: 0 };
     cardLevel = n;
     $("cardTitle").textContent = `Nivel ${n}`;
-    $("cardZone").textContent = lvl.hard ? `🔥 Nivel difícil · ${zoneOf(n).name}` : zoneOf(n).name;
+    $("cardZone").textContent = lvl.hard ? `🔥 Nivel difícil · ${worldOf(n).name}` : worldOf(n).name;
     $("cardTarget").textContent = formatNumber(lvl.target);
     $("cardMoves").textContent = lvl.moves;
     $("cardBest").textContent = info.best ? formatNumber(info.best) : "—";

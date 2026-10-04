@@ -1,9 +1,11 @@
 :root {
   /* Fondo del juego: para cambiarlo (por temporada, por nivel...) basta con cambiar estas variables.
      Si reemplazas una imagen con el mismo nombre, sube su número ?v= */
-  --bg-image: url("images/background.jpg?v=2");            /* celular en vertical */
-  --bg-image-wide: url("images/background-wide.jpg?v=1");  /* computadora y tablet horizontal */
-  --bg-fill: #c38a7c;          /* color de respaldo mientras carga la imagen */
+  /* El fondo cambia solo según el mundo (ver WORLDS en script.js). Estos son los del primer mundo. */
+  --bg-image: url("images/worlds/pradera.jpg?v=1");            /* celular en vertical */
+  --bg-image-wide: url("images/worlds/pradera-wide.jpg?v=1");  /* computadora y tablet horizontal */
+  --bg-fallback: linear-gradient(#bfe9ff, #d8f5c4 35%, #8bc34a 70%, #5a9e2f); /* si falta la imagen */
+  --bg-fill: #8bc34a;          /* color de respaldo mientras carga la imagen */
   --pink: #c2185b;
   --pink-dark: #8e0f42;
   --pink-soft: #ffe6f0;
@@ -43,14 +45,14 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: var(--bg-image) center / cover no-repeat;
+  background: var(--bg-image) center / cover no-repeat, var(--bg-fallback);
 }
 
 /* Pantallas anchas (computadora, tablet horizontal): la dulcería horizontal */
 @media (min-aspect-ratio: 1/1) {
   body::after {
-    background-image: var(--bg-image-wide);
-    background-position: center bottom;
+    background-image: var(--bg-image-wide), var(--bg-fallback);
+    background-position: center bottom, center;
   }
 }
 
@@ -241,7 +243,7 @@ button {
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 236, 244, 0.55);
+  background: var(--bg-fill);
 }
 
 .map-bar {
@@ -273,6 +275,7 @@ button {
 
 .map-scroll {
   flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -281,6 +284,31 @@ button {
   position: relative;
   width: min(480px, 100%);
   margin: 0 auto;
+}
+
+/* Fondo de cada mundo en el mapa: ocupa todo el ancho de la pantalla
+   y se mezcla suavemente con el mundo de arriba */
+.world-band {
+  position: absolute;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--map-image) center bottom / 100% auto repeat-y, var(--bg-fallback);
+  -webkit-mask-image: linear-gradient(to top, transparent, #000 160px);
+  mask-image: linear-gradient(to top, transparent, #000 160px);
+}
+
+.world-band.first {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+/* En computadora la imagen no se estira de más: se repite a lo ancho */
+@media (min-width: 700px) {
+  .world-band {
+    background-size: 700px auto, auto;
+    background-repeat: repeat, no-repeat;
+  }
 }
 
 .map-road {
