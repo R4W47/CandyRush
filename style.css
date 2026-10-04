@@ -648,6 +648,21 @@ h1 {
     rgba(255, 255, 255, 0.9) 0 3px, transparent 3px 8px);
 }
 
+/* Animalitos especiales con imagen propia (H y V): vienen de cuerpo entero y con
+   líneas de velocidad, así que se agrandan un 25% para que se vean del tamaño de las caras.
+   Pueden salirse un poco de su casilla; por eso se dibujan encima de las vecinas. */
+.candy[data-special="stripedH"]:not([data-css-stripes="yes"]),
+.candy[data-special="stripedV"]:not([data-css-stripes="yes"]) {
+  z-index: 1;
+}
+
+.candy[data-special="stripedH"]:not([data-css-stripes="yes"]) .face,
+.candy[data-special="stripedV"]:not([data-css-stripes="yes"]) .face {
+  width: 125%;
+  height: 125%;
+  margin: -12.5%;
+}
+
 /* Envuelto: un envoltorio dorado que gira */
 .candy[data-special="wrapped"] .face,
 .candy[data-special="armed"] .face {
@@ -691,7 +706,7 @@ h1 {
 }
 
 .candy.boom .face {
-  animation: boom var(--boom-time, 350ms) ease-out forwards;
+  animation: boom var(--boom-time, 350ms) ease-out var(--delay, 0ms) forwards;
 }
 
 /* Rayo que cruza una fila o columna */
@@ -701,7 +716,38 @@ h1 {
   left: 0;
   z-index: 3;
   pointer-events: none;
-  animation: beam var(--boom-time, 350ms) ease-out forwards;
+}
+
+/* El rayo aparece detrás del animalito a medida que avanza y luego se apaga */
+.beam-h {
+  animation: beam-grow-h var(--sweep, 630ms) linear forwards,
+             beam-fade var(--boom-time, 350ms) ease-out var(--sweep, 630ms) forwards;
+}
+
+.beam-v {
+  animation: beam-grow-v var(--sweep, 630ms) linear forwards,
+             beam-fade var(--boom-time, 350ms) ease-out var(--sweep, 630ms) forwards;
+}
+
+/* Animalito rayado que cruza el tablero */
+.runner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--cell);
+  height: var(--cell);
+  z-index: 4;
+  pointer-events: none;
+  background: center / contain no-repeat;
+  filter: drop-shadow(0 0 5px #fff) drop-shadow(0 0 6px rgba(255, 193, 7, 0.9));
+}
+
+.runner-h {
+  animation: run-h var(--sweep, 630ms) linear forwards;
+}
+
+.runner-v {
+  animation: run-v var(--sweep, 630ms) linear forwards;
 }
 
 .beam-h {
@@ -894,10 +940,28 @@ h1 {
   to { transform: rotate(360deg); }
 }
 
-@keyframes beam {
-  0%   { opacity: 0; }
-  25%  { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes beam-grow-h {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes beam-grow-v {
+  from { clip-path: inset(100% 0 0 0); }
+  to   { clip-path: inset(0 0 0 0); }
+}
+
+@keyframes beam-fade {
+  to { opacity: 0; }
+}
+
+@keyframes run-h {
+  from { transform: translate(-100%, calc(var(--y) * 100%)) scale(1.25); }
+  to   { transform: translate(calc(var(--w) * 100%), calc(var(--y) * 100%)) scale(1.25); }
+}
+
+@keyframes run-v {
+  from { transform: translate(calc(var(--x) * 100%), calc(var(--w) * 100%)) scale(1.25); }
+  to   { transform: translate(calc(var(--x) * 100%), -100%) scale(1.25); }
 }
 
 @keyframes rotate-hint {

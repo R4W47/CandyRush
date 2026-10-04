@@ -50,6 +50,7 @@
     pop: 250 * REACTION_SCALE,     // caramelos que desaparecen por combinación
     boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por un especial
     transform: 300 * REACTION_SCALE, // caramelos que se convierten en especiales
+    sweep: 450 * REACTION_SCALE,   // animalito rayado que cruza el tablero
   };
 
   // =====================================================================
@@ -240,7 +241,7 @@
       const cell = g[i];
       if (!cell.special || done.has(i)) continue;
       done.add(i);
-      fired.push({ index: i, special: cell.special });
+      fired.push({ index: i, special: cell.special, color: cell.color });
 
       switch (cell.special) {
         case STRIPED_H:
@@ -498,14 +499,59 @@
     playOnce(els[i], "born");
   }
 
-  // Rayo que cruza la fila o columna de un rayado
-  function showBeam(index, special) {
+  // Rayos que se están mostrando y que aún no se aplicaron (ver applyEffects)
+  let pendingBeams = [];
+
+  // El animalito rayado cruza el tablero dejando un rayo detrás:
+  // el horizontal va de izquierda a derecha y el vertical de abajo hacia arriba
+  function showBeam(index, special, color = null) {
+    const horizontal = special === STRIPED_H;
+    const dir = horizontal ? "h" : "v";
+    const parts = [];
+
     const beam = document.createElement("div");
-    beam.className = `beam ${special === STRIPED_H ? "beam-h" : "beam-v"}`;
-    beam.style.setProperty("--x", colOf(index));
-    beam.style.setProperty("--y", rowOf(index));
-    boardEl.appendChild(beam);
-    beam.addEventListener("animationend", () => beam.remove(), { once: true });
+    beam.className = `beam beam-${dir}`;
+    parts.push(beam);
+
+    if (color !== null) {
+      const runner = document.createElement("div");
+      runner.className = `runner runner-${dir}`;
+      const striped = STRIPED_IMAGES[special][color];
+      const src = loadedImages.has(striped) ? striped : CANDY_IMAGES[color];
+      runner.style.backgroundImage = `url("${src}")`;
+      parts.push(runner);
+    }
+
+    for (const el of parts) {
+      el.style.setProperty("--x", colOf(index));
+      el.style.setProperty("--y", rowOf(index));
+      el.style.setProperty("--w", WIDTH);
+      el.style.setProperty("--sweep", `${TIME.sweep}ms`);
+      boardEl.appendChild(el);
+    }
+    setTimeout(() => parts.forEach((el) => el.remove()), TIME.sweep + TIME.boom);
+    pendingBeams.push({ index, special });
+  }
+
+  // Cuánto espera cada casilla para explotar: justo cuando el animalito pasa por ella
+  function sweepDelays(cells, beams) {
+    const delays = new Map();
+    const origins = new Set(beams.map((b) => b.index));
+    for (const i of cells) {
+      if (origins.has(i)) continue; // el rayado sale de su casilla de inmediato
+      let best = null;
+      for (const { index, special } of beams) {
+        let steps = null;
+        if (special === STRIPED_H && rowOf(i) === rowOf(index)) steps = colOf(i) + 1;
+        if (special === STRIPED_V && colOf(i) === colOf(index)) steps = WIDTH - rowOf(i);
+        if (steps !== null) {
+          const ms = (steps / (WIDTH + 1)) * TIME.sweep;
+          best = best === null ? ms : Math.min(best, ms);
+        }
+      }
+      if (best !== null) delays.set(i, Math.round(best));
+    }
+    return delays;
   }
 
   // Intercambia dos casillas en el grid y en la pantalla, con deslizamiento
@@ -529,12 +575,14 @@
 
   // Quita caramelos: los de una combinación "revientan" (pop),
   // los alcanzados por un especial "explotan" (boom)
-  async function removeCells(cells, popCells) {
+  async function removeCells(cells, popCells, delays = new Map()) {
     vibrate();
     let longest = 0;
     for (const i of cells) {
       const effect = popCells.has(i) ? "pop" : "boom";
-      longest = Math.max(longest, effect === "pop" ? TIME.pop : TIME.boom);
+      const delay = effect === "boom" ? delays.get(i) || 0 : 0;
+      els[i].style.setProperty("--delay", `${delay}ms`);
+      longest = Math.max(longest, delay + (effect === "pop" ? TIME.pop : TIME.boom));
       grid[i] = null;
       els[i].classList.remove("selected");
       els[i].classList.add(effect);
@@ -549,15 +597,17 @@
   // Aplica en pantalla el resultado de expandEffects
   async function applyEffects({ clear, armed, fired }, popCells = new Set(), combo = 1) {
     for (const f of fired) {
-      if (f.special === STRIPED_H || f.special === STRIPED_V) showBeam(f.index, f.special);
+      if (f.special === STRIPED_H || f.special === STRIPED_V) showBeam(f.index, f.special, f.color);
     }
+    const beams = pendingBeams;
+    pendingBeams = [];
     for (const i of armed) {
       grid[i] = candy(grid[i].color, ARMED);
       setCell(els[i], grid[i]);
     }
     if (!clear.size) return;
     addScore(clear.size * POINTS_PER_CANDY * combo, combo);
-    await removeCells(clear, popCells);
+    await removeCells(clear, popCells, sweepDelays(clear, beams));
   }
 
   // Si el tablero se queda sin combinaciones posibles, se mezcla (no es culpa del jugador)
@@ -761,16 +811,17 @@
 
     if (stripes === 2) {
       // rayado + rayado: fila y columna completas
-      showBeam(b, STRIPED_H);
-      showBeam(b, STRIPED_V);
+      showBeam(b, STRIPED_H, grid[a].color);
+      showBeam(b, STRIPED_V, grid[b].color);
       await applyEffects(expandEffects(grid, [...rowCells(b), ...colCells(b)], [a, b]));
     } else if (stripes === 1) {
       // rayado + envuelto: 3 filas y 3 columnas
+      const color = (isStriped(grid[a]) ? grid[a] : grid[b]).color;
       for (const d of [-1, 0, 1]) {
         const r = rowOf(b) + d;
         const c = colOf(b) + d;
-        if (r >= 0 && r < WIDTH) showBeam(indexOf(r, colOf(b)), STRIPED_H);
-        if (c >= 0 && c < WIDTH) showBeam(indexOf(rowOf(b), c), STRIPED_V);
+        if (r >= 0 && r < WIDTH) showBeam(indexOf(r, colOf(b)), STRIPED_H, color);
+        if (c >= 0 && c < WIDTH) showBeam(indexOf(rowOf(b), c), STRIPED_V, color);
       }
       await applyEffects(expandEffects(grid, crossArea(b, 1), [a, b]));
     } else {
