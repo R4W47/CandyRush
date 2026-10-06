@@ -121,6 +121,7 @@ button {
 }
 
 .back-btn.small {
+  white-space: nowrap;
   width: auto;
   height: auto;
   padding: 3px 12px;
@@ -192,7 +193,7 @@ button {
   background: none;
   box-shadow: none;
   white-space: normal;
-  font-size: 3.4rem;
+  font-size: clamp(2.2rem, 11.5vw, 2.8rem); /* "Marshmallow" debe caber en pantallas angostas */
   font-weight: 700;
   line-height: 0.95;
   color: var(--pink);
@@ -201,6 +202,27 @@ button {
     0 5px 0 #f8bbd0,
     0 8px 14px rgba(194, 24, 91, 0.35);
   letter-spacing: 0.02em;
+}
+
+.lang-btn {
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--pink-dark);
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+.lang-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.lang-btn:focus-visible {
+  outline: 3px solid var(--pink-dark);
+  outline-offset: 2px;
 }
 
 .home-stars {
@@ -478,7 +500,7 @@ button {
 
 h1 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: clamp(1rem, 4.6vw, 1.3rem);
   color: var(--pink);
   background: rgba(255, 255, 255, 0.9);
   padding: 2px 16px;

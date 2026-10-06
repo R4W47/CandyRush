@@ -48,7 +48,124 @@
   // Puntos que hace en promedio un jugador por movimiento, según cuántos colores hay.
   // Con menos colores salen más combinaciones y cascadas. Calibrado con un bot.
   const POINTS_PER_MOVE = { 5: 234, 6: 113 };
+  // Se deja el nombre viejo a propósito: si se cambia, los jugadores pierden su progreso
   const SAVE_KEY = "candyRush.progress.v1"; // dónde se guarda el progreso en el navegador
+
+  // =====================================================================
+  // IDIOMAS (inglés por defecto, español opcional)
+  // =====================================================================
+  // Para agregar o corregir un texto, cámbialo aquí en los dos idiomas.
+  // En el HTML, los textos fijos llevan data-i18n="clave" (o data-i18n-aria
+  // para las etiquetas de accesibilidad) y se rellenan desde esta lista.
+
+  const LANG_KEY = "marshmallowPals.lang"; // dónde se guarda el idioma elegido
+  const TEXTS = {
+    en: {
+      title: "Marshmallow Pals",
+      starsWord: "stars",
+      playLevel: "Play · Level",
+      levels: "Levels",
+      backHome: "Back to home",
+      backMap: "Back to map",
+      mapShort: "‹ Map",
+      map: "Map",
+      level: "Level",
+      moves: "Moves",
+      score: "Score",
+      target: "Target",
+      board: "Game board",
+      rush: "Animal Rush!",
+      restart: "Restart level",
+      finalScore: "Score:",
+      levelBest: "Level best:",
+      best: "Best",
+      play: "Play",
+      close: "Close",
+      rotate: "Turn your phone upright to play",
+      switchLang: "Español",
+      switchLangAria: "Cambiar a español",
+      shuffling: "No moves left: shuffling…",
+      boardCleared: "Board cleared!",
+      tapToSkip: "Tap the board to skip",
+      starMessages: ["", "⭐ Target reached! Go for more stars", "⭐⭐ 2 stars! One more to go", "⭐⭐⭐ 3 stars!"],
+      combo: (n) => `Combo x${n}!`,
+      levelComplete: "Level complete!",
+      levelFailed: "Level failed",
+      missedBy: (pts) => `You were ${pts} points short`,
+      threeStarsSpare: (m) => `3 stars with ${m} move${m === 1 ? "" : "s"} to spare!`,
+      newBest: "New best score on this level!",
+      levelDone: (n) => `Level ${n} complete`,
+      nextLevel: "Next level",
+      replay: "Replay",
+      retry: "Try again",
+      levelTitle: (n) => `Level ${n}`,
+      hardLevel: (world) => `🔥 Hard level · ${world}`,
+      levelStart: (n, pts) => `Level ${n}! Reach ${pts} points`,
+      hardStart: (n) => `🔥 Level ${n} is a hard one!`,
+      levelAria: (n, locked) => `Level ${n}${locked ? " (locked)" : ""}`,
+    },
+    es: {
+      title: "Marshmallow Pals",
+      starsWord: "estrellas",
+      playLevel: "Jugar · Nivel",
+      levels: "Niveles",
+      backHome: "Volver a la portada",
+      backMap: "Volver al mapa",
+      mapShort: "‹ Mapa",
+      map: "Mapa",
+      level: "Nivel",
+      moves: "Movimientos",
+      score: "Puntos",
+      target: "Objetivo",
+      board: "Tablero de juego",
+      rush: "¡Animal Rush!",
+      restart: "Reiniciar nivel",
+      finalScore: "Puntaje:",
+      levelBest: "Récord del nivel:",
+      best: "Récord",
+      play: "Jugar",
+      close: "Cerrar",
+      rotate: "Gira tu teléfono en vertical para jugar",
+      switchLang: "English",
+      switchLangAria: "Switch to English",
+      shuffling: "Sin movimientos: mezclando…",
+      boardCleared: "¡Tablero limpio!",
+      tapToSkip: "Toca el tablero para saltar",
+      starMessages: ["", "⭐ ¡Objetivo cumplido! Ve por más estrellas", "⭐⭐ ¡2 estrellas! Una más y ganas", "⭐⭐⭐ ¡3 estrellas!"],
+      combo: (n) => `¡Combo x${n}!`,
+      levelComplete: "¡Nivel superado!",
+      levelFailed: "Nivel fallido",
+      missedBy: (pts) => `Te faltaron ${pts} puntos`,
+      threeStarsSpare: (m) => `¡3 estrellas con ${m} movimiento${m === 1 ? "" : "s"} de sobra!`,
+      newBest: "¡Nuevo récord en este nivel!",
+      levelDone: (n) => `Nivel ${n} completado`,
+      nextLevel: "Siguiente nivel",
+      replay: "Repetir",
+      retry: "Reintentar",
+      levelTitle: (n) => `Nivel ${n}`,
+      hardLevel: (world) => `🔥 Nivel difícil · ${world}`,
+      levelStart: (n, pts) => `¡Nivel ${n}! Llega a ${pts} puntos`,
+      hardStart: (n) => `🔥 ¡Nivel ${n} difícil!`,
+      levelAria: (n, locked) => `Nivel ${n}${locked ? " (bloqueado)" : ""}`,
+    },
+  };
+
+  function loadLang() {
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved && TEXTS[saved]) return saved;
+    } catch (e) { /* sin acceso al almacenamiento: se usa inglés */ }
+    return "en";
+  }
+
+  let lang = loadLang();
+
+  // t("clave") devuelve el texto; si es una función, le pasa los datos: t("combo", 3)
+  function t(key, ...args) {
+    const value = TEXTS[lang][key] ?? TEXTS.en[key];
+    return typeof value === "function" ? value(...args) : value;
+  }
+
   // Qué tan exigente es el objetivo (fracción de lo que suele lograr un jugador)
   const DIFFICULTY = { start: 0.3, perLevel: 0.009, max: 0.72, hardBonus: 0.1, relaxDiscount: 0.08 };
 
@@ -77,19 +194,19 @@
   const LEVELS_PER_WORLD = 100;
   const WORLD_IMAGE_VERSION = 1; // súbelo si reemplazas imágenes con el mismo nombre
   const WORLDS = [
-    { id: "pradera", name: "Pradera Verde", color: "#43a047",
+    { id: "pradera", name: { en: "Green Meadow", es: "Pradera Verde" }, color: "#43a047",
       fallback: "linear-gradient(#bfe9ff, #d8f5c4 35%, #8bc34a 70%, #5a9e2f)" },
-    { id: "bosque", name: "Bosque de Hongos", color: "#8d6e63",
+    { id: "bosque", name: { en: "Mushroom Forest", es: "Bosque de Hongos" }, color: "#8d6e63",
       fallback: "linear-gradient(#cfe8c8, #7cb36a 40%, #4e7d3a 75%, #3b5e2b)" },
-    { id: "playa", name: "Playa Soleada", color: "#039be5",
+    { id: "playa", name: { en: "Sunny Beach", es: "Playa Soleada" }, color: "#039be5",
       fallback: "linear-gradient(#aee4ff, #7fd3f7 40%, #f6e3a8 70%, #e9c97a)" },
-    { id: "selva", name: "Selva Tropical", color: "#00897b",
+    { id: "selva", name: { en: "Tropical Jungle", es: "Selva Tropical" }, color: "#00897b",
       fallback: "linear-gradient(#b9f0d8, #4fbf8f 40%, #1f8a63 75%, #13684a)" },
-    { id: "desierto", name: "Desierto de Cactus", color: "#fb8c00",
+    { id: "desierto", name: { en: "Cactus Desert", es: "Desierto de Cactus" }, color: "#fb8c00",
       fallback: "linear-gradient(#ffe0b2, #ffcc80 40%, #f0a85b 75%, #d9853b)" },
-    { id: "nieve", name: "Montaña Nevada", color: "#5c9ccf",
+    { id: "nieve", name: { en: "Snowy Mountain", es: "Montaña Nevada" }, color: "#5c9ccf",
       fallback: "linear-gradient(#dff1ff, #f4fbff 40%, #cfe3f2 75%, #a9c7de)" },
-    { id: "nubes", name: "Reino de las Nubes", color: "#8e24aa",
+    { id: "nubes", name: { en: "Cloud Kingdom", es: "Reino de las Nubes" }, color: "#8e24aa",
       fallback: "linear-gradient(#e7d9ff, #f8f0ff 40%, #d9c4f5 75%, #b79be6)" },
   ];
 
@@ -103,7 +220,7 @@
     return {
       ...world,
       index,
-      name: round ? `${world.name} ${round + 1}` : world.name,
+      name: round ? `${world.name[lang]} ${round + 1}` : world.name[lang],
       first: index * LEVELS_PER_WORLD + 1,
       last: (index + 1) * LEVELS_PER_WORLD,
     };
@@ -678,7 +795,7 @@
 
   // Si el tablero se queda sin combinaciones posibles, se mezcla (no es culpa del jugador)
   async function reshuffle() {
-    showMessage("Sin movimientos: mezclando…");
+    showMessage(t("shuffling"));
     els.forEach((el) => el.classList.add("pop"));
     await wait(TIME.pop);
     grid = shuffled(grid);
@@ -734,7 +851,7 @@
     messageTimer = setTimeout(() => (messageEl.textContent = ""), ms);
   }
 
-  const formatNumber = (n) => n.toLocaleString("es");
+  const formatNumber = (n) => n.toLocaleString(lang);
 
   function bump(el) {
     el.classList.remove("bump");
@@ -764,10 +881,9 @@
     bump(scoreBoxEl);
     const after = starsFor(score, level);
     if (after > before) {
-      const texts = ["", "⭐ ¡Objetivo cumplido! Ve por más estrellas", "⭐⭐ ¡2 estrellas! Una más y ganas", "⭐⭐⭐ ¡3 estrellas!"];
-      showMessage(texts[after], 2000);
+      showMessage(t("starMessages")[after], 2000);
     } else if (combo >= 2) {
-      showMessage(`¡Combo x${combo}!`);
+      showMessage(t("combo", combo));
     }
   }
 
@@ -788,13 +904,13 @@
     await wait(700); // una pausa para que se vea cómo quedó el tablero
     if (currentScreen !== "game") return; // salió del juego durante la bonificación
 
-    resultTitleEl.textContent = won ? "¡Nivel superado!" : "Nivel fallido";
+    resultTitleEl.textContent = won ? t("levelComplete") : t("levelFailed");
     let text;
-    if (!won) text = `Te faltaron ${formatNumber(level.target - score)} puntos`;
+    if (!won) text = t("missedBy", formatNumber(level.target - score));
     else if (stars === 3 && spareMoves > 0)
-      text = `¡3 estrellas con ${spareMoves} movimiento${spareMoves === 1 ? "" : "s"} de sobra!`;
-    else if (record.isNewBest && record.previousBest > 0) text = "¡Nuevo récord en este nivel!";
-    else text = `Nivel ${level.number} completado`;
+      text = t("threeStarsSpare", spareMoves);
+    else if (record.isNewBest && record.previousBest > 0) text = t("newBest");
+    else text = t("levelDone", level.number);
     resultTextEl.textContent = text;
     finalScoreEl.textContent = formatNumber(score);
     bestScoreEl.textContent = formatNumber(record.best);
@@ -805,13 +921,13 @@
     });
 
     if (won) {
-      primaryBtn.textContent = "Siguiente nivel";
+      primaryBtn.textContent = t("nextLevel");
       onPrimary = () => location.replace(`#nivel-${level.number + 1}`);
-      secondaryBtn.textContent = "Repetir";
+      secondaryBtn.textContent = t("replay");
       secondaryBtn.hidden = false;
       onSecondary = () => startLevel(level.number);
     } else {
-      primaryBtn.textContent = "Reintentar";
+      primaryBtn.textContent = t("retry");
       onPrimary = () => startLevel(level.number);
       secondaryBtn.hidden = true;
       onSecondary = null;
@@ -850,7 +966,7 @@
 
     if (target.special === BOMB) {
       // bomba + bomba: limpia el tablero completo
-      showMessage("¡Tablero limpio!");
+      showMessage(t("boardCleared"));
       await applyEffects({ clear: new Set(allCells()), armed: new Set(), fired: [] });
     } else if (isStriped(target)) {
       // bomba + rayado: todos los de ese color se vuelven rayados y se activan
@@ -966,7 +1082,7 @@
     rushSkip = false;
     rushBannerEl.hidden = false;
     playOnce(rushBannerEl, "show");
-    showMessage("Toca el tablero para saltar", 2500);
+    showMessage(t("tapToSkip"), 2500);
     // Si se pasa del tiempo máximo, termina como si el jugador la hubiera saltado
     const timer = setTimeout(() => (rushSkip = true), RUSH.maxTime);
     try {
@@ -1213,7 +1329,7 @@
     grid = createGrid(seededRandom(level.seed)); // el tablero inicial es siempre el mismo
     render("appear");
     updateHud();
-    showMessage(level.hard ? `🔥 ¡Nivel ${n} difícil!` : `¡Nivel ${n}! Llega a ${formatNumber(level.target)} puntos`, 3000);
+    showMessage(level.hard ? t("hardStart", n) : t("levelStart", n, formatNumber(level.target)), 3000);
   }
 
   // =====================================================================
@@ -1360,7 +1476,7 @@
         .filter(Boolean)
         .join(" ");
       html += `<button class="${classes}" data-level="${n}" style="left:${p.x}%; top:${p.y}px; --zone:${zone.color}"
-        ${locked ? "disabled" : ""} aria-label="Nivel ${n}${locked ? " (bloqueado)" : ""}">
+        ${locked ? "disabled" : ""} aria-label="${t("levelAria", n, locked)}">
         <span class="node-number">${locked ? "🔒" : n}</span>
         ${hard && !locked ? '<span class="node-fire">🔥</span>' : ""}
         ${info.stars ? `<span class="node-stars">${starIcons(info.stars)}</span>` : ""}
@@ -1400,8 +1516,8 @@
     const lvl = generateLevel(n);
     const info = progress.levels[n] || { stars: 0, best: 0 };
     cardLevel = n;
-    $("cardTitle").textContent = `Nivel ${n}`;
-    $("cardZone").textContent = lvl.hard ? `🔥 Nivel difícil · ${worldOf(n).name}` : worldOf(n).name;
+    $("cardTitle").textContent = t("levelTitle", n);
+    $("cardZone").textContent = lvl.hard ? t("hardLevel", worldOf(n).name) : worldOf(n).name;
     $("cardTarget").textContent = formatNumber(lvl.target);
     $("cardMoves").textContent = lvl.moves;
     $("cardBest").textContent = info.best ? formatNumber(info.best) : "—";
@@ -1425,7 +1541,34 @@
     if (e.key === "Escape") hideLevelCard();
   });
 
+  // ---------- Idioma ----------
+
+  // Pone todos los textos fijos de la página en el idioma actual
+  function applyLanguage() {
+    document.documentElement.lang = lang;
+    document.title = t("title");
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      el.setAttribute("aria-label", t(el.dataset.i18nAria));
+    });
+    $("langToggle").setAttribute("aria-label", t("switchLangAria"));
+    $("langToggle").lang = lang === "en" ? "es" : "en";
+  }
+
+  $("langToggle").addEventListener("click", () => {
+    lang = lang === "en" ? "es" : "en";
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) { /* no se pudo guardar */ }
+    applyLanguage();
+    if (currentScreen === "home") renderHome();
+    if (currentScreen === "map") renderMap();
+    if (currentScreen === "game" && level) updateHud();
+  });
+
   // ---------- Arranque ----------
+
+  applyLanguage();
 
   progress = loadProgress();
   window.addEventListener("hashchange", route);

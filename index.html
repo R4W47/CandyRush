@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Candy Rush</title>
+  <title>Marshmallow Pals</title>
   <meta name="theme-color" content="#f9a9b8">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="images/icon-192.png">
@@ -11,25 +11,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <!-- ===== PORTADA ===== -->
   <section id="home" class="screen home" hidden>
     <div class="home-card">
       <div id="logoCandies" class="logo-candies" aria-hidden="true"></div>
-      <h1 class="logo">Candy<br>Rush</h1>
-      <p class="home-stars"><span class="mini-star earned"></span> <strong id="homeStars">0</strong> estrellas</p>
-      <button id="homePlay" class="big-btn primary" type="button">Jugar · Nivel <span id="homeLevel">1</span></button>
-      <button id="homeMap" class="big-btn" type="button">Niveles</button>
+      <h1 class="logo">Marshmallow<br>Pals</h1>
+      <p class="home-stars"><span class="mini-star earned"></span> <strong id="homeStars">0</strong> <span data-i18n="starsWord">stars</span></p>
+      <button id="homePlay" class="big-btn primary" type="button"><span data-i18n="playLevel">Play · Level</span> <span id="homeLevel">1</span></button>
+      <button id="homeMap" class="big-btn" type="button" data-i18n="levels">Levels</button>
+      <button id="langToggle" class="lang-btn" type="button"><span aria-hidden="true">🌐</span> <span data-i18n="switchLang">Español</span></button>
     </div>
   </section>
 
   <!-- ===== MAPA DE NIVELES ===== -->
   <section id="map" class="screen map" hidden>
     <header class="map-bar">
-      <button id="mapBack" class="back-btn" type="button" aria-label="Volver a la portada">‹</button>
-      <h2>Niveles</h2>
+      <button id="mapBack" class="back-btn" type="button" data-i18n-aria="backHome" aria-label="Back to home">‹</button>
+      <h2 data-i18n="levels">Levels</h2>
       <div class="map-stars"><span class="mini-star earned"></span> <strong id="mapStars">0</strong></div>
     </header>
     <div id="mapScroll" class="map-scroll">
@@ -41,14 +42,14 @@
   <main id="game" class="screen game" hidden>
     <header class="hud">
       <div class="hud-top">
-        <button id="gameBack" class="back-btn small" type="button" aria-label="Volver al mapa">‹ Mapa</button>
-        <h1>Candy Rush</h1>
+        <button id="gameBack" class="back-btn small" type="button" data-i18n="mapShort" data-i18n-aria="backMap" aria-label="Back to map">‹ Map</button>
+        <h1>Marshmallow Pals</h1>
         <span class="hud-spacer"></span>
       </div>
       <div class="stats">
-        <div class="stat"><span>Nivel</span><strong id="levelNum">1</strong></div>
-        <div class="stat moves" id="movesBox"><span>Movimientos</span><strong id="moves">0</strong></div>
-        <div class="stat" id="scoreBox"><span>Puntos</span><strong id="score">0</strong></div>
+        <div class="stat"><span data-i18n="level">Level</span><strong id="levelNum">1</strong></div>
+        <div class="stat moves" id="movesBox"><span data-i18n="moves">Moves</span><strong id="moves">0</strong></div>
+        <div class="stat" id="scoreBox"><span data-i18n="score">Score</span><strong id="score">0</strong></div>
       </div>
       <div class="goal">
         <div class="goal-bar" aria-hidden="true">
@@ -57,18 +58,18 @@
           <span id="goalMark2" class="goal-mark"></span>
           <span id="goalMark3" class="goal-mark"></span>
         </div>
-        <div class="goal-text">Objetivo <strong id="target">0</strong></div>
+        <div class="goal-text"><span data-i18n="target">Target</span> <strong id="target">0</strong></div>
       </div>
     </header>
 
     <div class="board-frame">
-      <div id="board" class="board" aria-label="Tablero de caramelos"></div>
-      <div id="rushBanner" class="rush-banner" hidden>¡Animal Rush!</div>
+      <div id="board" class="board" data-i18n-aria="board" aria-label="Game board"></div>
+      <div id="rushBanner" class="rush-banner" hidden data-i18n="rush">Animal Rush!</div>
     </div>
 
     <p id="message" class="message" aria-live="polite"></p>
 
-    <button id="restart" class="restart" type="button">Reiniciar nivel</button>
+    <button id="restart" class="restart" type="button" data-i18n="restart">Restart level</button>
   </main>
 
   <div id="result" class="game-over" hidden>
@@ -78,12 +79,12 @@
         <span class="star"></span><span class="star big"></span><span class="star"></span>
       </div>
       <p id="resultText"></p>
-      <p class="final-score">Puntaje: <strong id="finalScore">0</strong></p>
-      <p class="best-score">Récord del nivel: <strong id="bestScore">0</strong></p>
+      <p class="final-score"><span data-i18n="finalScore">Score:</span> <strong id="finalScore">0</strong></p>
+      <p class="best-score"><span data-i18n="levelBest">Level best:</span> <strong id="bestScore">0</strong></p>
       <div class="game-over-actions">
         <button id="resultPrimary" class="restart primary" type="button"></button>
         <button id="resultSecondary" class="restart" type="button"></button>
-        <button id="exitGame" class="restart" type="button">Mapa</button>
+        <button id="exitGame" class="restart" type="button" data-i18n="map">Map</button>
       </div>
     </div>
   </div>
@@ -91,28 +92,28 @@
   <!-- Tarjeta que aparece al tocar un nivel en el mapa -->
   <div id="levelCard" class="game-over" hidden>
     <div class="game-over-card level-card" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
-      <h2 id="cardTitle">Nivel 1</h2>
+      <h2 id="cardTitle">Level 1</h2>
       <p id="cardZone" class="card-zone"></p>
       <div class="result-stars" id="cardStars" aria-hidden="true">
         <span class="star"></span><span class="star big"></span><span class="star"></span>
       </div>
       <div class="card-info">
-        <div><span>Objetivo</span><strong id="cardTarget">0</strong></div>
-        <div><span>Movimientos</span><strong id="cardMoves">0</strong></div>
-        <div><span>Récord</span><strong id="cardBest">—</strong></div>
+        <div><span data-i18n="target">Target</span><strong id="cardTarget">0</strong></div>
+        <div><span data-i18n="moves">Moves</span><strong id="cardMoves">0</strong></div>
+        <div><span data-i18n="best">Best</span><strong id="cardBest">—</strong></div>
       </div>
       <div class="game-over-actions">
-        <button id="cardPlay" class="restart primary" type="button">Jugar</button>
-        <button id="cardClose" class="restart" type="button">Cerrar</button>
+        <button id="cardPlay" class="restart primary" type="button" data-i18n="play">Play</button>
+        <button id="cardClose" class="restart" type="button" data-i18n="close">Close</button>
       </div>
     </div>
   </div>
 
   <div class="rotate-notice" role="alert">
     <div class="phone" aria-hidden="true">📱</div>
-    <p>Gira tu teléfono en vertical para jugar</p>
+    <p data-i18n="rotate">Turn your phone upright to play</p>
   </div>
 
-  <script src="script.js?v=16"></script>
+  <script src="script.js?v=17"></script>
 </body>
 </html>
