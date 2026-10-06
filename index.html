@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
   <!-- ===== PORTADA ===== -->
@@ -20,6 +20,7 @@
       <div id="logoCandies" class="logo-candies" aria-hidden="true"></div>
       <h1 class="logo">Marshmallow<br>Pals</h1>
       <p class="home-stars"><span class="mini-star earned"></span> <strong id="homeStars">0</strong> <span data-i18n="starsWord">stars</span></p>
+      <div class="lives-pill" data-lives aria-live="polite"><span class="heart" aria-hidden="true"><strong class="lives-count">5</strong></span><span class="lives-timer"></span></div>
       <button id="homePlay" class="big-btn primary" type="button"><span data-i18n="playLevel">Play · Level</span> <span id="homeLevel">1</span></button>
       <button id="homeMap" class="big-btn" type="button" data-i18n="levels">Levels</button>
       <button id="langToggle" class="lang-btn" type="button"><span aria-hidden="true">🌐</span> <span data-i18n="switchLang">Español</span></button>
@@ -31,7 +32,10 @@
     <header class="map-bar">
       <button id="mapBack" class="back-btn" type="button" data-i18n-aria="backHome" aria-label="Back to home">‹</button>
       <h2 data-i18n="levels">Levels</h2>
-      <div class="map-stars"><span class="mini-star earned"></span> <strong id="mapStars">0</strong></div>
+      <div class="map-badges">
+        <div class="lives-pill small" data-lives><span class="heart" aria-hidden="true"><strong class="lives-count">5</strong></span><span class="lives-timer"></span></div>
+        <div class="map-stars"><span class="mini-star earned"></span> <strong id="mapStars">0</strong></div>
+      </div>
     </header>
     <div id="mapScroll" class="map-scroll">
       <div id="mapPath" class="map-path"></div>
@@ -44,7 +48,7 @@
       <div class="hud-top">
         <button id="gameBack" class="back-btn small" type="button" data-i18n="mapShort" data-i18n-aria="backMap" aria-label="Back to map">‹ Map</button>
         <h1>Marshmallow Pals</h1>
-        <span class="hud-spacer"></span>
+        <div class="lives-pill small" data-lives><span class="heart" aria-hidden="true"><strong class="lives-count">5</strong></span><span class="lives-timer"></span></div>
       </div>
       <div class="stats">
         <div class="stat"><span data-i18n="level">Level</span><strong id="levelNum">1</strong></div>
@@ -68,8 +72,6 @@
     </div>
 
     <p id="message" class="message" aria-live="polite"></p>
-
-    <button id="restart" class="restart" type="button" data-i18n="restart">Restart level</button>
   </main>
 
   <div id="result" class="game-over" hidden>
@@ -109,11 +111,39 @@
     </div>
   </div>
 
+  <!-- Confirmación al salir de un nivel a medias -->
+  <div id="quitConfirm" class="game-over" hidden>
+    <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="quitTitle">
+      <h2 id="quitTitle" data-i18n="quitTitle">Leave level?</h2>
+      <div class="big-heart broken" aria-hidden="true"></div>
+      <p data-i18n="quitText">If you leave before finishing, you'll lose a life.</p>
+      <div class="game-over-actions">
+        <button id="quitStay" class="restart primary" type="button" data-i18n="keepPlaying">Keep playing</button>
+        <button id="quitLeave" class="restart" type="button" data-i18n="quitLeave">Leave (−1 life)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sin vidas -->
+  <div id="noLives" class="game-over" hidden>
+    <div class="game-over-card" role="dialog" aria-modal="true" aria-labelledby="noLivesTitle">
+      <h2 id="noLivesTitle" data-i18n="noLivesTitle">Out of lives</h2>
+      <div class="big-heart empty" aria-hidden="true"></div>
+      <p data-i18n="noLivesText">Your lives refill on their own over time.</p>
+      <p class="next-life"><span data-i18n="nextLifeIn">Next life in</span> <strong id="noLivesTimer">--:--</strong></p>
+      <div class="game-over-actions">
+        <!-- Aquí irá el botón de "ver anuncio por una vida" cuando se integre AdMob -->
+        <button id="noLivesAd" class="restart primary" type="button" data-i18n="watchAd" hidden>Watch ad · +1 life</button>
+        <button id="noLivesClose" class="restart" type="button" data-i18n="ok">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div class="rotate-notice" role="alert">
     <div class="phone" aria-hidden="true">📱</div>
     <p data-i18n="rotate">Turn your phone upright to play</p>
   </div>
 
-  <script src="script.js?v=17"></script>
+  <script src="script.js?v=18"></script>
 </body>
 </html>

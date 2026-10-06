@@ -51,6 +51,14 @@
   // Se deja el nombre viejo a propósito: si se cambia, los jugadores pierden su progreso
   const SAVE_KEY = "candyRush.progress.v1"; // dónde se guarda el progreso en el navegador
 
+  // ---------- Vidas ----------
+  // Se pierde una vida al fallar un nivel o al salir a medias (después de haber jugado
+  // al menos un movimiento). Ganar no gasta vidas. Se recargan solas con el tiempo.
+  const LIVES = {
+    max: 5,                    // vidas máximas
+    refillMinutes: 30,         // minutos para recuperar 1 vida
+  };
+
   // =====================================================================
   // IDIOMAS (inglés por defecto, español opcional)
   // =====================================================================
@@ -75,7 +83,18 @@
       target: "Target",
       board: "Game board",
       rush: "Animal Rush!",
-      restart: "Restart level",
+      quitTitle: "Leave level?",
+      quitText: "If you leave before finishing, you'll lose a life.",
+      keepPlaying: "Keep playing",
+      quitLeave: "Leave (−1 life)",
+      noLivesTitle: "Out of lives",
+      noLivesText: "Your lives refill on their own over time.",
+      nextLifeIn: "Next life in",
+      watchAd: "Watch ad · +1 life",
+      ok: "OK",
+      livesFull: "Full",
+      livesAria: (n, time) => `${n} li${n === 1 ? "fe" : "ves"}${time ? `, next one in ${time}` : ""}`,
+      lifeLost: "−1 life",
       finalScore: "Score:",
       levelBest: "Level best:",
       best: "Best",
@@ -119,7 +138,18 @@
       target: "Objetivo",
       board: "Tablero de juego",
       rush: "¡Animal Rush!",
-      restart: "Reiniciar nivel",
+      quitTitle: "¿Salir del nivel?",
+      quitText: "Si sales antes de terminar, perderás una vida.",
+      keepPlaying: "Seguir jugando",
+      quitLeave: "Salir (−1 vida)",
+      noLivesTitle: "Sin vidas",
+      noLivesText: "Tus vidas se recargan solas con el tiempo.",
+      nextLifeIn: "Próxima vida en",
+      watchAd: "Ver anuncio · +1 vida",
+      ok: "Entendido",
+      livesFull: "Llenas",
+      livesAria: (n, time) => `${n} vida${n === 1 ? "" : "s"}${time ? `, la siguiente en ${time}` : ""}`,
+      lifeLost: "−1 vida",
       finalScore: "Puntaje:",
       levelBest: "Récord del nivel:",
       best: "Récord",
@@ -266,7 +296,6 @@
   const goalFillEl = $("goalFill");
   const goalMarks = [$("goalMark1"), $("goalMark2"), $("goalMark3")];
   const messageEl = $("message");
-  const restartBtn = $("restart");
   const resultEl = $("result");
   const resultTitleEl = $("resultTitle");
   const resultTextEl = $("resultText");
@@ -895,6 +924,8 @@
   async function finishLevel() {
     ended = true;
     clearSelection();
+    // ganar no gasta vidas; fallar sí (si ya salió y la pagó, no se cobra dos veces)
+    if (lifeInPlay(true)) settleLife(starsFor(score, level) === 0);
     const spareMoves = movesLeft;
     if (starsFor(score, level) > 0) await animalRush(); // solo si ganó
     const stars = starsFor(score, level);
@@ -925,10 +956,10 @@
       onPrimary = () => location.replace(`#nivel-${level.number + 1}`);
       secondaryBtn.textContent = t("replay");
       secondaryBtn.hidden = false;
-      onSecondary = () => startLevel(level.number);
+      onSecondary = () => playAgain(level.number);
     } else {
       primaryBtn.textContent = t("retry");
-      onPrimary = () => startLevel(level.number);
+      onPrimary = () => playAgain(level.number);
       secondaryBtn.hidden = true;
       onSecondary = null;
     }
@@ -1037,6 +1068,7 @@
   }
 
   function useMove() {
+    if (!ended) markLifeInPlay(); // el Animal Rush también gasta movimientos, pero ya terminó
     movesLeft--;
     updateHud();
     bump(movesBoxEl);
@@ -1234,16 +1266,15 @@
 
   boardEl.addEventListener("pointercancel", () => (drag = null));
 
-  restartBtn.addEventListener("click", () => {
-    if (!busy) startLevel(level.number);
-  });
-
   primaryBtn.addEventListener("click", () => onPrimary && onPrimary());
   secondaryBtn.addEventListener("click", () => onSecondary && onSecondary());
 
   // "Mapa" (en el mensaje final) y "‹ Mapa" (arriba en el juego) vuelven al mapa
   exitBtn.addEventListener("click", () => goToMap());
-  $("gameBack").addEventListener("click", () => goToMap());
+  $("gameBack").addEventListener("click", () => {
+    if (lifeInPlay()) showQuitConfirm(); // si ya jugó, avisa que pierde una vida
+    else goToMap();
+  });
 
   // =====================================================================
   // 8. INICIO
@@ -1307,6 +1338,146 @@
     return { best: entry.best, isNewBest: points > previousBest, previousBest };
   }
 
+  // ---------- Vidas ----------
+  //   progress.lives.count:   vidas que tiene
+  //   progress.lives.since:   cuándo empezó a cargarse la próxima (null si están llenas)
+  //   progress.lives.pending: nivel con una vida "en juego" (ya hizo al menos un movimiento).
+  //     Si se cierra el juego a medias, al volver a abrirlo se cobra esa vida.
+  const REFILL_MS = LIVES.refillMinutes * 60 * 1000;
+  const quitEl = $("quitConfirm");
+  const noLivesEl = $("noLives");
+
+  function livesState() {
+    if (!progress.lives) progress.lives = { count: LIVES.max, since: null, pending: null };
+    return progress.lives;
+  }
+
+  // Suma las vidas que se recargaron desde la última vez que se revisó
+  function refreshLives() {
+    const L = livesState();
+    const now = Date.now();
+    if (L.count >= LIVES.max) {
+      L.count = LIVES.max;
+      L.since = null;
+      return L;
+    }
+    if (!L.since || L.since > now) L.since = now; // sin fecha, o el reloj se atrasó
+    const gained = Math.floor((now - L.since) / REFILL_MS);
+    if (gained > 0) {
+      L.count = Math.min(LIVES.max, L.count + gained);
+      L.since = L.count >= LIVES.max ? null : L.since + gained * REFILL_MS;
+      saveProgress();
+      renderLives(true);
+    }
+    return L;
+  }
+
+  const canPlay = () => refreshLives().count > 0;
+
+  function msToNextLife() {
+    const L = refreshLives();
+    return L.since ? Math.max(0, L.since + REFILL_MS - Date.now()) : 0;
+  }
+
+  function formatTime(ms) {
+    const total = Math.ceil(ms / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = String(total % 60).padStart(2, "0");
+    return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+  }
+
+  function loseLife() {
+    const L = refreshLives();
+    if (L.count >= LIVES.max) L.since = Date.now(); // empieza a recargarse desde ahora
+    L.count = Math.max(0, L.count - 1);
+    L.pending = null;
+    saveProgress();
+    renderLives(true);
+  }
+
+  // Para regalar vidas (por ejemplo, al ver un anuncio recompensado)
+  function addLives(n = 1) {
+    const L = refreshLives();
+    L.count = Math.min(LIVES.max, L.count + n);
+    if (L.count >= LIVES.max) L.since = null;
+    saveProgress();
+    renderLives(true);
+  }
+
+  // Con el primer movimiento, la vida de este nivel queda en juego
+  function markLifeInPlay() {
+    const L = livesState();
+    if (L.pending === level.number) return;
+    L.pending = level.number;
+    saveProgress();
+  }
+
+  // ¿Hay una vida en juego en el nivel actual? (evenIfEnded: también después de terminar)
+  const lifeInPlay = (evenIfEnded = false) =>
+    !!level && (evenIfEnded || !ended) && livesState().pending === level.number;
+
+  // Al terminar el nivel: si perdió, cuesta una vida; si ganó, la vida se devuelve
+  function settleLife(lost) {
+    if (lost) loseLife();
+    else {
+      livesState().pending = null;
+      saveProgress();
+    }
+  }
+
+  // Pinta las vidas en la portada, el mapa y el juego, y el reloj del mensaje "Sin vidas"
+  function renderLives(animate = false) {
+    const L = refreshLives();
+    const left = msToNextLife();
+    const time = L.count < LIVES.max ? formatTime(left) : "";
+    document.querySelectorAll("[data-lives]").forEach((pill) => {
+      pill.querySelector(".lives-count").textContent = L.count;
+      const full = pill.classList.contains("small") ? "" : t("livesFull");
+      pill.querySelector(".lives-timer").textContent = time || full;
+      pill.classList.toggle("empty", L.count === 0);
+      pill.setAttribute("aria-label", t("livesAria", L.count, time));
+      if (animate) playOnce(pill, "bump");
+    });
+    if (!noLivesEl.hidden) {
+      if (L.count > 0) noLivesEl.hidden = true; // ya se recargó una: puede jugar
+      else $("noLivesTimer").textContent = formatTime(left);
+    }
+  }
+
+  function showNoLives() {
+    hideLevelCard();
+    noLivesEl.hidden = false;
+    renderLives();
+    $("noLivesClose").focus();
+  }
+
+  function showQuitConfirm() {
+    quitEl.hidden = false;
+    $("quitStay").focus();
+  }
+
+  // Repetir el nivel (desde el mensaje final): solo si quedan vidas
+  function playAgain(n) {
+    if (canPlay()) return startLevel(n);
+    goToMap();
+    showNoLives();
+  }
+
+  $("quitStay").addEventListener("click", () => (quitEl.hidden = true));
+  $("quitLeave").addEventListener("click", () => {
+    quitEl.hidden = true;
+    if (lifeInPlay()) loseLife();
+    goToMap();
+  });
+  quitEl.addEventListener("click", (e) => {
+    if (e.target === quitEl) quitEl.hidden = true;
+  });
+  $("noLivesClose").addEventListener("click", () => (noLivesEl.hidden = true));
+  noLivesEl.addEventListener("click", (e) => {
+    if (e.target === noLivesEl) noLivesEl.hidden = true;
+  });
+
   // Espera a que termine la jugada en curso (por si el jugador sale a mitad de una cascada)
   async function whenIdle() {
     if (rushing) rushSkip = true; // no hace falta esperar toda la bonificación
@@ -1364,6 +1535,7 @@
   }
 
   function openLevel(n, from) {
+    if (!canPlay()) return showNoLives();
     gameFrom = from;
     goTo(`#nivel-${n}`);
   }
@@ -1371,6 +1543,15 @@
   async function route() {
     hideLevelCard();
     const match = location.hash.match(/^#nivel-(\d+)$/);
+
+    // Botón "atrás" del celular a mitad de un nivel: se queda en el nivel y pregunta
+    if (currentScreen === "game" && lifeInPlay() && !(match && Number(match[1]) === level.number)) {
+      history.pushState(null, "", `#nivel-${level.number}`);
+      showQuitConfirm();
+      return;
+    }
+    quitEl.hidden = true;
+
     if (match) {
       const n = Number(match[1]);
       if (n < 1 || n > progress.unlocked) {
@@ -1378,6 +1559,11 @@
         return;
       }
       const isNewEntry = currentScreen !== "game" || !level || level.number !== n;
+      if (isNewEntry && !canPlay()) {
+        location.replace("#mapa"); // sin vidas: al mapa, con el aviso
+        showNoLives();
+        return;
+      }
       showScreen("game");
       if (isNewEntry) await startLevel(n);
       return;
@@ -1538,7 +1724,10 @@
     if (e.target === levelCardEl) hideLevelCard(); // tocar fuera de la tarjeta la cierra
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") hideLevelCard();
+    if (e.key !== "Escape") return;
+    hideLevelCard();
+    quitEl.hidden = true;
+    noLivesEl.hidden = true;
   });
 
   // ---------- Idioma ----------
@@ -1564,6 +1753,7 @@
     if (currentScreen === "home") renderHome();
     if (currentScreen === "map") renderMap();
     if (currentScreen === "game" && level) updateHud();
+    renderLives();
   });
 
   // ---------- Arranque ----------
@@ -1571,6 +1761,10 @@
   applyLanguage();
 
   progress = loadProgress();
+  // Si se cerró el juego a mitad de un nivel, esa vida se pierde
+  if (livesState().pending !== null) loseLife();
+  renderLives();
+  setInterval(renderLives, 1000); // el reloj de la próxima vida
   window.addEventListener("hashchange", route);
   preloadImages().then(route);
 })();
