@@ -31,6 +31,19 @@
 
   const POINTS_PER_CANDY = 10;
 
+  // ---------- Animal Rush (bonificación al ganar el nivel) ----------
+  // Al ganar: 1) explotan los especiales que quedaron en el tablero,
+  // 2) cada movimiento sobrante convierte un animalito al azar en rayado y explota,
+  // 3) se resuelven las cascadas y los especiales nuevos hasta que todo queda quieto.
+  const RUSH = {
+    pointsPerMove: 150,    // puntos fijos por cada movimiento que sobró (además de las explosiones)
+    perWave: 3,            // mínimo de movimientos que se convierten antes de explotarlos juntos
+    maxWaves: 2,           // con muchos movimientos sobrantes, se agrupan para no tardar demasiado
+    maxTime: 9000,         // duración máxima (ms): al pasarla, lo que falta se paga de una vez
+    convertDelay: 140,     // pausa entre cada animalito que se convierte (ms)
+    maxRounds: 30,         // límite de seguridad para no quedarse en un ciclo infinito
+  };
+
   // ---------- Niveles ----------
   // Puntos que hace en promedio un jugador por movimiento, según cuántos colores hay.
   // Con menos colores salen más combinaciones y cascadas. Calibrado con un bot.
@@ -42,10 +55,11 @@
   // Velocidad de las animaciones: 1 = rápido, 2 = el doble de lento, 1.5 = intermedio...
   const MOVE_SCALE = 2;       // movimientos: intercambio, caída y mezcla
   const REACTION_SCALE = 1.4; // reacciones: combinaciones y explosiones
+  const FALL_SPEED = 1.2;     // caída: 1.2 = 20% más rápida que los demás movimientos
   const TIME = {
     swap: 180 * MOVE_SCALE,        // intercambio de dos caramelos
-    fallPerRow: 70 * MOVE_SCALE,   // tiempo de caída por cada fila
-    fallMin: 160 * MOVE_SCALE,     // caída mínima
+    fallPerRow: (70 * MOVE_SCALE) / FALL_SPEED,   // tiempo de caída por cada fila
+    fallMin: (160 * MOVE_SCALE) / FALL_SPEED,     // caída mínima
     appear: 300 * MOVE_SCALE,      // entrada del tablero al iniciar
     pop: 250 * REACTION_SCALE,     // caramelos que desaparecen por combinación
     boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por un especial
@@ -765,17 +779,20 @@
   async function finishLevel() {
     ended = true;
     clearSelection();
+    const spareMoves = movesLeft;
+    if (starsFor(score, level) > 0) await animalRush(); // solo si ganó
     const stars = starsFor(score, level);
     const won = stars > 0;
     const record = saveResult(level.number, score, stars);
 
     await wait(700); // una pausa para que se vea cómo quedó el tablero
+    if (currentScreen !== "game") return; // salió del juego durante la bonificación
 
     resultTitleEl.textContent = won ? "¡Nivel superado!" : "Nivel fallido";
     let text;
     if (!won) text = `Te faltaron ${formatNumber(level.target - score)} puntos`;
-    else if (stars === 3 && movesLeft > 0)
-      text = `¡3 estrellas con ${movesLeft} movimiento${movesLeft === 1 ? "" : "s"} de sobra!`;
+    else if (stars === 3 && spareMoves > 0)
+      text = `¡3 estrellas con ${spareMoves} movimiento${spareMoves === 1 ? "" : "s"} de sobra!`;
     else if (record.isNewBest && record.previousBest > 0) text = "¡Nuevo récord en este nivel!";
     else text = `Nivel ${level.number} completado`;
     resultTextEl.textContent = text;
@@ -909,6 +926,84 @@
     bump(movesBoxEl);
   }
 
+  // ---------- Animal Rush ----------
+
+  let rushing = false;   // true mientras corre la bonificación
+  let rushSkip = false;  // el jugador tocó para saltarla (o salió del nivel)
+  const rushBannerEl = $("rushBanner");
+
+  const boardSpecials = () => allCells().filter((i) => grid[i] && grid[i].special);
+
+  // Explota unas casillas (con sus especiales), hace caer todo y resuelve las cascadas
+  async function fireCells(cells) {
+    await applyEffects(expandEffects(grid, cells), new Set(), 1);
+    await dropCandies();
+    await settleBoard(2);
+  }
+
+  // Explota, por rondas, todos los especiales que haya en el tablero
+  async function fireAllSpecials() {
+    for (let round = 0; round < RUSH.maxRounds && !rushSkip; round++) {
+      const specials = boardSpecials();
+      if (!specials.length) break;
+      await fireCells(specials);
+    }
+  }
+
+  // Convierte un movimiento sobrante en un animalito rayado al azar
+  function convertMove(exclude) {
+    const options = allCells().filter((i) => grid[i] && !grid[i].special && !exclude.includes(i));
+    if (!options.length) return null;
+    const i = options[Math.floor(Math.random() * options.length)];
+    useMove();
+    transformCell(i, candy(grid[i].color, Math.random() < 0.5 ? STRIPED_H : STRIPED_V));
+    addScore(RUSH.pointsPerMove);
+    return i;
+  }
+
+  async function animalRush() {
+    rushing = true;
+    rushSkip = false;
+    rushBannerEl.hidden = false;
+    playOnce(rushBannerEl, "show");
+    showMessage("Toca el tablero para saltar", 2500);
+    // Si se pasa del tiempo máximo, termina como si el jugador la hubiera saltado
+    const timer = setTimeout(() => (rushSkip = true), RUSH.maxTime);
+    try {
+      await wait(600);
+      await fireAllSpecials();                       // 1. especiales que quedaron
+
+      const perWave = Math.max(RUSH.perWave, Math.ceil(movesLeft / RUSH.maxWaves));
+      while (movesLeft > 0 && !rushSkip) {           // 2. movimientos sobrantes
+        const wave = [];
+        while (wave.length < perWave && movesLeft > 0 && !rushSkip) {
+          const i = convertMove(wave);
+          if (i === null) break;
+          wave.push(i);
+          await wait(RUSH.convertDelay);
+        }
+        if (!wave.length) break;
+        await wait(TIME.transform);
+        await fireCells(wave);
+      }
+
+      await fireAllSpecials();                       // 3. lo que haya quedado
+    } finally {
+      clearTimeout(timer);
+      // Si se saltó (o se acabó el tiempo), los movimientos que faltaban se pagan de una vez
+      // (su bono fijo más lo que daría, más o menos, la explosión de un rayado)
+      if (movesLeft > 0) {
+        const points = movesLeft * (RUSH.pointsPerMove + WIDTH * POINTS_PER_CANDY);
+        movesLeft = 0;
+        addScore(points);
+      }
+      rushBannerEl.hidden = true;
+      rushing = false;
+      rushSkip = false;
+    }
+  }
+
+
   async function playTurn(a, b) {
     if (busy || ended || a === null || b === null || !areAdjacent(a, b)) return;
     busy = true;
@@ -993,6 +1088,10 @@
   let drag = null;
 
   boardEl.addEventListener("pointerdown", (e) => {
+    if (rushing) {
+      rushSkip = true; // tocar durante el Animal Rush lo salta
+      return;
+    }
     if (busy || ended) return;
     const index = cellFromPoint(e.clientX, e.clientY);
     if (index === null) return;
@@ -1094,6 +1193,7 @@
 
   // Espera a que termine la jugada en curso (por si el jugador sale a mitad de una cascada)
   async function whenIdle() {
+    if (rushing) rushSkip = true; // no hace falta esperar toda la bonificación
     while (busy) await wait(50);
   }
 
@@ -1130,6 +1230,7 @@
   let mapFromHome = false;
 
   function showScreen(name) {
+    if (name !== "game" && rushing) rushSkip = true;
     for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
     document.body.dataset.screen = name;
     currentScreen = name;

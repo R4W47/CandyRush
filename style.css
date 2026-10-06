@@ -599,6 +599,42 @@ h1 {
   backdrop-filter: blur(4px);   /* suaviza los estantes que quedan detrás del tablero */
   border-radius: 16px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  position: relative;           /* para centrar encima el letrero de Animal Rush */
+}
+
+/* Letrero de la bonificación final */
+.rush-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-6deg);
+  z-index: 20;
+  pointer-events: none;         /* los toques pasan al tablero (para saltar) */
+  white-space: nowrap;
+  font-size: clamp(1.8rem, 9vw, 3rem);
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 2px var(--pink-dark, #c2185b);
+  text-shadow: 0 4px 0 var(--pink-dark, #c2185b), 0 8px 16px rgba(0, 0, 0, 0.35);
+  animation: rush-float 1.6s ease-in-out infinite;
+}
+
+.rush-banner.show {
+  animation: rush-in 0.6s cubic-bezier(0.3, 1.6, 0.5, 1), rush-float 1.6s ease-in-out 0.6s infinite;
+}
+
+.rush-banner[hidden] {
+  display: none;
+}
+
+@keyframes rush-in {
+  from { transform: translate(-50%, -50%) rotate(-6deg) scale(0); opacity: 0; }
+  to   { transform: translate(-50%, -50%) rotate(-6deg) scale(1); opacity: 1; }
+}
+
+@keyframes rush-float {
+  0%, 100% { transform: translate(-50%, -50%) rotate(-6deg) scale(1); }
+  50%      { transform: translate(-50%, -54%) rotate(-3deg) scale(1.06); }
 }
 
 .board {
