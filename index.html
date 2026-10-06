@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <!-- ===== PORTADA ===== -->
@@ -72,6 +72,14 @@
     </div>
 
     <p id="message" class="message" aria-live="polite"></p>
+
+    <!-- Power-ups: se arman con un toque; martillo y cambio se aplican tocando el tablero -->
+    <div id="boosters" class="boosters" role="toolbar" data-i18n-aria="boosters" aria-label="Power-ups">
+      <button class="booster" type="button" data-booster="hammer"><span class="booster-icon" aria-hidden="true">🔨</span><span class="booster-count">0</span></button>
+      <button class="booster" type="button" data-booster="swap"><span class="booster-icon" aria-hidden="true">🔀</span><span class="booster-count">0</span></button>
+      <button class="booster" type="button" data-booster="moves"><span class="booster-icon text" aria-hidden="true">+5</span><span class="booster-count">0</span></button>
+      <button class="booster" type="button" data-booster="shuffle"><span class="booster-icon" aria-hidden="true">🌀</span><span class="booster-count">0</span></button>
+    </div>
   </main>
 
   <div id="result" class="game-over" hidden>
@@ -83,6 +91,10 @@
       <p id="resultText"></p>
       <p class="final-score"><span data-i18n="finalScore">Score:</span> <strong id="finalScore">0</strong></p>
       <p class="best-score"><span data-i18n="levelBest">Level best:</span> <strong id="bestScore">0</strong></p>
+      <div id="resultReward" class="reward" hidden>
+        <p id="rewardTitle" class="reward-title"></p>
+        <div id="rewardItems" class="reward-items"></div>
+      </div>
       <div class="game-over-actions">
         <button id="resultPrimary" class="restart primary" type="button"></button>
         <button id="resultSecondary" class="restart" type="button"></button>
@@ -144,6 +156,6 @@
     <p data-i18n="rotate">Turn your phone upright to play</p>
   </div>
 
-  <script src="script.js?v=18"></script>
+  <script src="script.js?v=19"></script>
 </body>
 </html>

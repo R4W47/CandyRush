@@ -13,7 +13,7 @@
   /* el corazón de las vidas (dibujado en SVG, no necesita imagen) */
   --heart-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 29'%3E%3Cpath d='M16 28.5S1 19.6 1 9.3C1 4.6 4.6 1 9 1c3 0 5.6 1.7 7 4.2C17.4 2.7 20 1 23 1c4.4 0 8 3.6 8 8.3 0 10.3-15 19.2-15 19.2z' fill='%23ff4d6d' stroke='%23c9184a' stroke-width='2'/%3E%3Cellipse cx='9.5' cy='8' rx='3' ry='2' fill='%23fff' opacity='.6'/%3E%3C/svg%3E");
   /* tamaño de cada casilla: se adapta al ancho y al alto de la pantalla */
-  --cell: min(11vw, calc((100vh - 290px) / 8), 80px);
+  --cell: min(11vw, calc((100vh - 310px) / 8), 80px);
 }
 
 * {
@@ -60,7 +60,7 @@ body::after {
 
 @supports (height: 100dvh) {
   :root {
-    --cell: min(11vw, calc((100dvh - 290px) / 8), 80px);
+    --cell: min(11vw, calc((100dvh - 310px) / 8), 80px);
   }
 }
 
@@ -1235,4 +1235,159 @@ h1 {
 @media (max-width: 380px) {
   .map-stars { padding: 4px 8px; }
   .lives-pill.small .lives-timer { font-size: 0.75rem; }
+}
+
+/* ---------- Power-ups ---------- */
+
+.boosters {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: calc(var(--cell) * 8 + 24px);
+  max-width: 100%;
+}
+
+.booster {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 58px;
+  padding: 0;
+  font: inherit;
+  background: rgba(255, 255, 255, 0.92);
+  border: 3px solid #ffc2d4;
+  border-radius: 18px;
+  box-shadow: 0 3px 0 #f3a6c1, 0 4px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 100ms, box-shadow 100ms, border-color 150ms;
+}
+
+.booster:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #f3a6c1;
+}
+
+.booster-icon {
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.booster-icon.text {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--pink);
+}
+
+/* la cantidad, en una burbujita en la esquina */
+.booster-count {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--pink);
+  border: 2px solid #fff;
+  border-radius: 12px;
+}
+
+.booster.none .booster-icon {
+  filter: grayscale(1) opacity(0.45);
+}
+
+.booster.none .booster-count {
+  background: #b9a3ac;
+}
+
+/* armado: esperando que el jugador toque el tablero (o confirme) */
+.booster.armed {
+  border-color: var(--pink);
+  background: var(--pink-soft);
+  animation: booster-glow 900ms ease-in-out infinite;
+}
+
+.boosters.locked .booster {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.booster:focus-visible {
+  outline: 3px solid var(--pink-dark);
+  outline-offset: 2px;
+}
+
+@keyframes booster-glow {
+  0%, 100% { box-shadow: 0 3px 0 var(--pink-dark), 0 0 0 0 rgba(194, 24, 91, 0.45); }
+  50%      { box-shadow: 0 3px 0 var(--pink-dark), 0 0 0 7px rgba(194, 24, 91, 0); }
+}
+
+/* con el martillo armado, el tablero muestra que se puede tocar un animalito */
+.board.hammer-mode .candy {
+  cursor: crosshair;
+}
+
+.board.hammer-mode .candy:hover .face {
+  transform: scale(0.88);
+  filter: brightness(1.15);
+}
+
+.candy.smash .face {
+  animation: smash 280ms ease-out;
+}
+
+@keyframes smash {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.7) rotate(-8deg); }
+  100% { transform: scale(1.1) rotate(4deg); }
+}
+
+/* Premio en la pantalla final */
+.reward {
+  margin-top: 10px;
+  padding: 8px 10px 10px;
+  background: #fff8e1;
+  border: 2px dashed #f5b000;
+  border-radius: 16px;
+  animation: card-in 500ms 900ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.reward[hidden] {
+  display: none;
+}
+
+.reward .reward-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: #b07800;
+}
+
+.reward-items {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.reward-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-weight: 700;
+  color: var(--pink-dark);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.reward-item .booster-icon {
+  font-size: 1.3rem;
+}
+
+.reward-item .booster-icon.text {
+  font-size: 1rem;
 }

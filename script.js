@@ -59,6 +59,29 @@
     refillMinutes: 30,         // minutos para recuperar 1 vida
   };
 
+  // ---------- Power-ups ----------
+  // Ninguno gasta movimiento. Al empezar el juego por primera vez se regalan "starter".
+  const BOOSTERS = {
+    starter: { hammer: 3, swap: 2, moves: 2, shuffle: 1 },
+    extraMoves: 5,             // cuántos movimientos da el "+5"
+  };
+
+  // Premios por un resultado muy bueno. Solo se dan si ganas con 3 estrellas Y superas
+  // tu récord del nivel (así no se puede repetir un nivel fácil para juntar power-ups).
+  // Se mide con los movimientos que sobraron al llegar a las 3 estrellas: son los que el
+  // Animal Rush convierte en puntos, o sea, lo que hace que el puntaje se pase por mucho.
+  // "spare" = fracción de movimientos sobrantes (0.25 = te sobró la cuarta parte).
+  // Calibrado con un bot: en los primeros niveles ~1 de cada 4 victorias con 3 estrellas
+  // llega a 0.25; en niveles más avanzados es mucho más raro.
+  const REWARDS = {
+    tiers: [
+      { spare: 0.4, count: 2, key: "rewardAmazing", shuffleChance: 0.35 },
+      { spare: 0.25, count: 1, key: "rewardGreat", shuffleChance: 0 },
+    ],
+    // probabilidad de cada premio (la mezcla solo sale en el nivel "increíble", y poco)
+    weights: { hammer: 40, swap: 30, moves: 30 },
+  };
+
   // =====================================================================
   // IDIOMAS (inglés por defecto, español opcional)
   // =====================================================================
@@ -95,6 +118,19 @@
       livesFull: "Full",
       livesAria: (n, time) => `${n} li${n === 1 ? "fe" : "ves"}${time ? `, next one in ${time}` : ""}`,
       lifeLost: "−1 life",
+      boosters: "Power-ups",
+      boosterNames: { hammer: "Hammer", swap: "Free swap", moves: "+5 moves", shuffle: "Shuffle" },
+      boosterHint: {
+        hammer: "🔨 Tap a piece to smash it",
+        swap: "🔀 Swipe or tap two neighbors to swap them",
+        moves: "Tap +5 again to add 5 moves",
+        shuffle: "Tap 🌀 again to shuffle the board",
+      },
+      boosterEmpty: "None left! Win 3 stars with a great score to earn more",
+      movesAdded: "+5 moves!",
+      boosterAria: (name, n) => `${name}: ${n} left`,
+      rewardGreat: "🎁 Great score! You earned:",
+      rewardAmazing: "🎁 Amazing score! You earned:",
       finalScore: "Score:",
       levelBest: "Level best:",
       best: "Best",
@@ -150,6 +186,19 @@
       livesFull: "Llenas",
       livesAria: (n, time) => `${n} vida${n === 1 ? "" : "s"}${time ? `, la siguiente en ${time}` : ""}`,
       lifeLost: "−1 vida",
+      boosters: "Power-ups",
+      boosterNames: { hammer: "Martillo", swap: "Cambio libre", moves: "+5 movimientos", shuffle: "Mezclar" },
+      boosterHint: {
+        hammer: "🔨 Toca un animalito para romperlo",
+        swap: "🔀 Desliza o toca dos vecinos para cambiarlos",
+        moves: "Toca +5 otra vez para sumar 5 movimientos",
+        shuffle: "Toca 🌀 otra vez para mezclar el tablero",
+      },
+      boosterEmpty: "¡No te quedan! Gana 3 estrellas con un gran puntaje para conseguir más",
+      movesAdded: "¡+5 movimientos!",
+      boosterAria: (name, n) => `${name}: quedan ${n}`,
+      rewardGreat: "🎁 ¡Gran puntaje! Ganaste:",
+      rewardAmazing: "🎁 ¡Puntaje increíble! Ganaste:",
       finalScore: "Puntaje:",
       levelBest: "Récord del nivel:",
       best: "Récord",
@@ -923,6 +972,8 @@
 
   async function finishLevel() {
     ended = true;
+    armedBooster = null;
+    renderBoosters();
     clearSelection();
     // ganar no gasta vidas; fallar sí (si ya salió y la pagó, no se cobra dos veces)
     if (lifeInPlay(true)) settleLife(starsFor(score, level) === 0);
@@ -931,6 +982,7 @@
     const stars = starsFor(score, level);
     const won = stars > 0;
     const record = saveResult(level.number, score, stars);
+    const reward = won ? rewardFor(stars, spareMoves, record) : null;
 
     await wait(700); // una pausa para que se vea cómo quedó el tablero
     if (currentScreen !== "game") return; // salió del juego durante la bonificación
@@ -964,6 +1016,7 @@
       onSecondary = null;
     }
 
+    showReward(reward);
     resultEl.classList.toggle("won", won);
     resultEl.hidden = false;
     primaryBtn.focus();
@@ -1152,10 +1205,21 @@
   }
 
 
+  // Después de cualquier jugada (o power-up): cascadas, fin del nivel o mezcla
+  async function afterTurn() {
+    await settleBoard(2);
+    // el nivel termina al conseguir las 3 estrellas, o al acabarse los movimientos
+    if (score >= level.stars[2] || movesLeft === 0) await finishLevel();
+    else if (!hasPossibleMove(grid)) await reshuffle();
+  }
+
   async function playTurn(a, b) {
     if (busy || ended || a === null || b === null || !areAdjacent(a, b)) return;
+    const free = armedBooster === "swap"; // cambio libre: no necesita combinar ni gasta movimiento
     busy = true;
     clearSelection();
+    if (free) spendBooster("swap");
+    const move = () => { if (!free) useMove(); };
 
     try {
       await swapCells(a, b);
@@ -1163,29 +1227,192 @@
       const B = grid[b];
 
       if (A.special === BOMB || B.special === BOMB) {
-        useMove();
+        move();
         const bomb = B.special === BOMB ? b : a;
         await bombSwap(bomb, bomb === a ? b : a);
       } else if (A.special && B.special) {
-        useMove();
+        move();
         await specialCombo(a, b);
       } else {
         const matches = findMatches(grid);
-        if (!matches.groups.length) {
+        if (matches.groups.length) {
+          move();
+          await resolveMatches(matches, { a, b }, 1);
+        } else if (!free) {
           await swapCells(a, b); // no sirvió: los caramelos regresan (no gasta movimiento)
           return;
         }
-        useMove();
-        await resolveMatches(matches, { a, b }, 1);
       }
 
-      await settleBoard(2);
-      // el nivel termina al conseguir las 3 estrellas, o al acabarse los movimientos
-      if (score >= level.stars[2] || movesLeft === 0) await finishLevel();
-      else if (!hasPossibleMove(grid)) await reshuffle();
+      await afterTurn();
     } finally {
       busy = false;
+      renderBoosters();
     }
+  }
+
+  // =====================================================================
+  // POWER-UPS
+  // =====================================================================
+  //   progress.boosters = { hammer, swap, moves, shuffle }: cuántos tiene de cada uno
+  //   armedBooster: el que está "armado" esperando que el jugador lo aplique
+
+  const BOOSTER_TYPES = ["hammer", "swap", "moves", "shuffle"];
+  const BOOSTER_ICONS = { hammer: "🔨", swap: "🔀", moves: "+5", shuffle: "🌀" };
+  const boostersEl = $("boosters");
+  const boosterBtns = [...boostersEl.querySelectorAll(".booster")];
+  let armedBooster = null;
+  let bonusMoves = 0; // movimientos sumados con "+5" en este nivel (no cuentan para premios)
+
+  function boosterStock() {
+    if (!progress.boosters) progress.boosters = { ...BOOSTERS.starter }; // regalo inicial
+    return progress.boosters;
+  }
+
+  const boosterCount = (type) => boosterStock()[type] || 0;
+
+  function spendBooster(type) {
+    boosterStock()[type] = Math.max(0, boosterCount(type) - 1);
+    armedBooster = null;
+    markLifeInPlay(); // usar un power-up cuenta como haber empezado el nivel
+    saveProgress();
+    renderBoosters();
+  }
+
+  function giveBoosters(items) {
+    const stock = boosterStock();
+    for (const type of items) stock[type] = (stock[type] || 0) + 1;
+    saveProgress();
+  }
+
+  function disarmBooster() {
+    if (!armedBooster) return;
+    armedBooster = null;
+    renderBoosters();
+  }
+
+  function renderBoosters() {
+    const names = t("boosterNames");
+    for (const btn of boosterBtns) {
+      const type = btn.dataset.booster;
+      const n = boosterCount(type);
+      btn.querySelector(".booster-count").textContent = n;
+      btn.classList.toggle("none", n === 0);
+      btn.classList.toggle("armed", armedBooster === type);
+      btn.setAttribute("aria-pressed", armedBooster === type);
+      btn.setAttribute("aria-label", t("boosterAria", names[type], n));
+      btn.title = names[type];
+    }
+    boostersEl.classList.toggle("locked", ended);
+    boardEl.classList.toggle("hammer-mode", armedBooster === "hammer");
+  }
+
+  // 🔨 Martillo: rompe el animalito tocado (si es especial, se activa)
+  async function useHammer(i) {
+    if (busy || ended || !grid[i]) return;
+    busy = true;
+    clearSelection();
+    try {
+      spendBooster("hammer");
+      playOnce(els[i], "smash");
+      vibrate();
+      await wait(220);
+      await applyEffects(expandEffects(grid, [i]), new Set(), 1);
+      await dropCandies();
+      await afterTurn();
+    } finally {
+      busy = false;
+      renderBoosters();
+    }
+  }
+
+  // +5 movimientos
+  function useExtraMoves() {
+    spendBooster("moves");
+    movesLeft += BOOSTERS.extraMoves;
+    bonusMoves += BOOSTERS.extraMoves;
+    updateHud();
+    bump(movesBoxEl);
+    showMessage(t("movesAdded"));
+  }
+
+  // 🌀 Mezclar el tablero
+  async function useShuffle() {
+    if (busy) return;
+    busy = true;
+    clearSelection();
+    try {
+      spendBooster("shuffle");
+      await reshuffle();
+    } finally {
+      busy = false;
+      renderBoosters();
+    }
+  }
+
+  // Primer toque: arma el power-up. Martillo y cambio se aplican en el tablero;
+  // +5 y mezclar se confirman con un segundo toque (para no gastarlos sin querer).
+  boostersEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".booster");
+    if (!btn || busy || ended || rushing) return;
+    const type = btn.dataset.booster;
+
+    if (armedBooster === type) {
+      if (type === "moves") return useExtraMoves();
+      if (type === "shuffle") return useShuffle();
+      return disarmBooster(); // tocar otra vez el martillo o el cambio los cancela
+    }
+    if (boosterCount(type) < 1) {
+      disarmBooster();
+      showMessage(t("boosterEmpty"), 3000);
+      return;
+    }
+    armedBooster = type;
+    clearSelection();
+    renderBoosters();
+    showMessage(t("boosterHint")[type], 6000);
+  });
+
+  // ---------- Premios por un resultado muy bueno ----------
+
+  function pickBooster(weights) {
+    const total = Object.values(weights).reduce((a, b) => a + b, 0);
+    let roll = Math.random() * total;
+    for (const [type, w] of Object.entries(weights)) {
+      roll -= w;
+      if (roll < 0) return type;
+    }
+    return "hammer";
+  }
+
+  // Decide el premio al ganar. Devuelve null si no hay premio.
+  function rewardFor(stars, spareMoves, record) {
+    if (stars < 3 || !record.isNewBest) return null;
+    const spare = Math.max(0, spareMoves - bonusMoves) / level.moves;
+    const tier = REWARDS.tiers.find((tr) => spare >= tr.spare);
+    if (!tier) return null;
+    const items = [];
+    for (let k = 0; k < tier.count; k++) {
+      const shuffle = !items.includes("shuffle") && Math.random() < tier.shuffleChance;
+      items.push(shuffle ? "shuffle" : pickBooster(REWARDS.weights));
+    }
+    giveBoosters(items);
+    return { key: tier.key, items };
+  }
+
+  function showReward(reward) {
+    const box = $("resultReward");
+    box.hidden = !reward;
+    if (!reward) return;
+    $("rewardTitle").textContent = t(reward.key);
+    const counts = {};
+    for (const type of reward.items) counts[type] = (counts[type] || 0) + 1;
+    const names = t("boosterNames");
+    $("rewardItems").innerHTML = Object.entries(counts)
+      .map(([type, n]) => `<span class="reward-item" title="${names[type]}">
+        <span class="booster-icon${type === "moves" ? " text" : ""}" aria-hidden="true">${BOOSTER_ICONS[type]}</span>
+        <span>${names[type]} ×${n}</span></span>`)
+      .join("");
   }
 
   // =====================================================================
@@ -1243,6 +1470,10 @@
     if (busy || ended) return;
     const index = cellFromPoint(e.clientX, e.clientY);
     if (index === null) return;
+    if (armedBooster === "hammer") {
+      useHammer(index);
+      return;
+    }
     drag = { index, x: e.clientX, y: e.clientY, swiped: false };
     boardEl.setPointerCapture(e.pointerId);
   });
@@ -1494,12 +1725,15 @@
     score = 0;
     ended = false;
     selected = null;
+    armedBooster = null;
+    bonusMoves = 0;
     progress.current = n;
     saveProgress();
 
     grid = createGrid(seededRandom(level.seed)); // el tablero inicial es siempre el mismo
     render("appear");
     updateHud();
+    renderBoosters();
     showMessage(level.hard ? t("hardStart", n) : t("levelStart", n, formatNumber(level.target)), 3000);
   }
 
@@ -1726,6 +1960,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     hideLevelCard();
+    disarmBooster();
     quitEl.hidden = true;
     noLivesEl.hidden = true;
   });
@@ -1754,6 +1989,7 @@
     if (currentScreen === "map") renderMap();
     if (currentScreen === "game" && level) updateHud();
     renderLives();
+    renderBoosters();
   });
 
   // ---------- Arranque ----------
