@@ -765,9 +765,12 @@ h1 {
   animation: spin 6s linear infinite;
 }
 
-/* Armado: ya explotó una vez y está por explotar otra */
+/* Armado: ya explotó una vez y está por explotar otra.
+   Vibra nervioso (temblor rápido) mientras brilla en naranja-rojo. */
 .candy[data-special="armed"] .face {
-  animation: armed 0.35s ease-in-out infinite alternate;
+  animation:
+    armed-shake 0.12s linear infinite,
+    armed 0.35s ease-in-out infinite alternate;
 }
 
 .candy[data-special="armed"] .face::after {
@@ -1020,8 +1023,18 @@ h1 {
 }
 
 @keyframes armed {
-  from { transform: scale(0.95); filter: drop-shadow(0 0 3px orange); }
-  to   { transform: scale(1.1);  filter: drop-shadow(0 0 9px red); }
+  from { filter: drop-shadow(0 0 3px orange) brightness(1); }
+  to   { filter: drop-shadow(0 0 9px red) brightness(1.15); }
+}
+
+/* Temblor del animalito armado: pequeños saltos de lado a lado con giro */
+@keyframes armed-shake {
+  0%   { transform: translate(0, 0)        rotate(0deg)  scale(1.05); }
+  20%  { transform: translate(-2px, 1px)   rotate(-5deg) scale(1.08); }
+  40%  { transform: translate(2px, -1px)   rotate(5deg)  scale(1.05); }
+  60%  { transform: translate(-2px, -1px)  rotate(-4deg) scale(1.08); }
+  80%  { transform: translate(2px, 1px)    rotate(4deg)  scale(1.05); }
+  100% { transform: translate(0, 0)        rotate(0deg)  scale(1.05); }
 }
 
 @keyframes spin {

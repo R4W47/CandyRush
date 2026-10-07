@@ -261,6 +261,7 @@
     boom: 350 * REACTION_SCALE,    // caramelos que desaparecen por un especial
     transform: 300 * REACTION_SCALE, // caramelos que se convierten en especiales
     sweep: 450 * REACTION_SCALE,   // animalito rayado que cruza el tablero
+    armed: 550 * REACTION_SCALE,   // el envuelto armado vibra antes de su segunda explosión
   };
 
   // ---------- Mundos ----------
@@ -1108,6 +1109,7 @@
     while (true) {
       const armed = allCells().filter((i) => grid[i] && grid[i].special === ARMED);
       if (armed.length) {
+        await wait(TIME.armed); // se deja ver cómo vibra antes de volver a explotar
         await applyEffects(expandEffects(grid, armed), new Set(), combo);
         await dropCandies();
         combo++;
