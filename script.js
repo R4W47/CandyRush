@@ -276,10 +276,10 @@
   const WORLDS = [
     { id: "pradera", name: { en: "Green Meadow", es: "Pradera Verde" }, color: "#43a047",
       fallback: "linear-gradient(#bfe9ff, #d8f5c4 35%, #8bc34a 70%, #5a9e2f)" },
-    { id: "bosque", name: { en: "Mushroom Forest", es: "Bosque de Hongos" }, color: "#8d6e63",
-      fallback: "linear-gradient(#cfe8c8, #7cb36a 40%, #4e7d3a 75%, #3b5e2b)" },
     { id: "playa", name: { en: "Sunny Beach", es: "Playa Soleada" }, color: "#039be5",
       fallback: "linear-gradient(#aee4ff, #7fd3f7 40%, #f6e3a8 70%, #e9c97a)" },
+    { id: "bosque", name: { en: "Mushroom Forest", es: "Bosque de Hongos" }, color: "#8d6e63",
+      fallback: "linear-gradient(#cfe8c8, #7cb36a 40%, #4e7d3a 75%, #3b5e2b)" },
     { id: "selva", name: { en: "Tropical Jungle", es: "Selva Tropical" }, color: "#00897b",
       fallback: "linear-gradient(#b9f0d8, #4fbf8f 40%, #1f8a63 75%, #13684a)" },
     { id: "desierto", name: { en: "Cactus Desert", es: "Desierto de Cactus" }, color: "#fb8c00",
