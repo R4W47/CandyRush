@@ -12,7 +12,7 @@
   // Las imágenes se llaman así: red.png (normal), redH.png (rayas horizontales),
   // redV.png (rayas verticales). Si falta una imagen de rayas, se dibujan con CSS.
   const CANDY_NAMES = ["red", "green", "blue", "pink", "purple", "yellow"];
-  const IMAGE_VERSION = 3; // súbelo si reemplazas imágenes con el mismo nombre
+  const IMAGE_VERSION = 4; // súbelo si reemplazas imágenes con el mismo nombre
   const imagePath = (name) => `images/candies/${name}.png?v=${IMAGE_VERSION}`;
   const CANDY_IMAGES = CANDY_NAMES.map((name) => imagePath(name));
   const STRIPED_IMAGES = {
@@ -1513,7 +1513,12 @@
   // 8. INICIO
   // =====================================================================
 
-  // Carga todas las imágenes antes de empezar y anota cuáles existen
+  // Las imágenes cargadas se guardan aquí para que el navegador no las suelte de memoria.
+  // Si las soltara, un animalito especial (que casi nunca está en pantalla) aparecería
+  // como una casilla vacía mientras el teléfono vuelve a cargar su imagen.
+  const keptImages = [];
+
+  // Carga (y decodifica) todas las imágenes antes de empezar y anota cuáles existen
   function preloadImages() {
     const sources = [
       ...CANDY_IMAGES,
@@ -1528,7 +1533,10 @@
             const img = new Image();
             img.onload = () => {
               loadedImages.add(src);
-              resolve();
+              keptImages.push(img);
+              // decode() deja la imagen lista para dibujarse al instante
+              const ready = img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+              ready.then(resolve);
             };
             img.onerror = resolve; // si no existe, se usará el respaldo
             img.src = src;
